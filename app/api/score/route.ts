@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { routed } from "../../lib/ai";
 
 const SYSTEM_PROMPT = `You are a dance pose comparison engine. You receive two images:
 1. A reference frame from a dance video
@@ -28,15 +29,17 @@ Score guidelines:
 
 The webcam image may be non-mirrored. Focus on the spatial pose shape, not left/right labeling.`;
 
-export async function POST(req: NextRequest) {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "GROQ_API_KEY not configured" },
-      { status: 501 }
-    );
+function parseJsonObject(raw: string): Record<string, unknown> | null {
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  try {
+    return JSON.parse(match[0]);
+  } catch {
+    return null;
   }
+}
 
+export async function POST(req: NextRequest) {
   try {
     const { referenceFrame, webcamFrame } = await req.json();
 
@@ -47,46 +50,29 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const groq = new OpenAI({
-      apiKey,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
-    const completion = await groq.chat.completions.create({
-      model: "meta-llama/llama-4-scout-17b-16e-instruct",
+    const { text, response } = await generateText({
+      ...routed("vision"),
+      system: SYSTEM_PROMPT,
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: [
-            { type: "text", text: "Compare these two poses:" },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${referenceFrame}`,
-              },
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:image/jpeg;base64,${webcamFrame}`,
-              },
-            },
+            { type: "text", text: "Compare these two poses. Image 1 is the reference, image 2 is the dancer:" },
+            { type: "image", image: referenceFrame, mediaType: "image/jpeg" },
+            { type: "image", image: webcamFrame, mediaType: "image/jpeg" },
           ],
         },
       ],
-      response_format: { type: "json_object" },
       temperature: 0.3,
-      max_tokens: 150,
+      maxOutputTokens: 200,
+      maxRetries: 0,
+      abortSignal: AbortSignal.timeout(8000),
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "{}";
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
+    const parsed = parseJsonObject(text);
+    if (!parsed) {
       return NextResponse.json(
-        { error: "Failed to parse model response", raw },
+        { error: "Failed to parse model response", raw: text },
         { status: 502 }
       );
     }
@@ -100,11 +86,12 @@ export async function POST(req: NextRequest) {
       bodyMatch: typeof parsed.bodyMatch === "number" ? parsed.bodyMatch : score,
       limbDetail: parsed.limbDetail ?? {},
       feedback: typeof parsed.feedback === "string" ? parsed.feedback : "",
+      model: response.modelId,
     });
   } catch (err) {
-    console.error("Groq score API error:", err);
+    console.error("Vision score API error:", err);
     return NextResponse.json(
-      { error: "Groq API call failed" },
+      { error: "Vision scoring failed" },
       { status: 502 }
     );
   }

@@ -5,7 +5,7 @@ import path from "path";
 export const maxDuration = 600; // 10 minutes
 
 const VIDEO_DIR = "/tmp/jigglewiggle";
-const MODAL_ENDPOINT_URL = "https://aryankeluskar--jigglewiggle-sam2-sam2model-segment.modal.run";
+const MODAL_ENDPOINT_URL = process.env.SAM2_ENDPOINT_URL ?? "";
 
 function maskPath(videoId: string) {
   return path.join(VIDEO_DIR, `${videoId}_mask.mp4`);
@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// SAM2 segmentation (Modal) is optional; the client skips it unless configured.
 export async function GET() {
-  return Response.json({ configured: true });
+  return Response.json({ configured: Boolean(process.env.SAM2_ENDPOINT_URL) && !process.env.VERCEL });
 }

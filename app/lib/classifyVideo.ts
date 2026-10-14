@@ -1,42 +1,28 @@
 /**
  * Classifies a YouTube video as "dance" or "gym" based on its title and description.
- * Uses Groq API with a fast text model for classification.
+ * Uses a small, fast text model through AI Gateway.
  */
 
 import type { AppMode } from "../shared/mode";
-import OpenAI from "openai";
+import { generateText } from "ai";
+import { routed } from "./ai";
 
 export async function classifyVideo(
   title: string,
   description: string
 ): Promise<AppMode> {
-  const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) return "dance";
-
   try {
-    const groq = new OpenAI({
-      apiKey,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Given a YouTube video title and description, classify it as either 'fitness' or 'dance'. Reply with ONLY the word 'fitness' or 'dance'.",
-        },
-        {
-          role: "user",
-          content: `Title: ${title}\n\nDescription: ${(description || "").slice(0, 1000)}`,
-        },
-      ],
-      max_tokens: 10,
+    const { text } = await generateText({
+      ...routed("classify"),
+      system:
+        "Given a YouTube video title and description, classify it as either 'fitness' or 'dance'. Reply with ONLY the word 'fitness' or 'dance'.",
+      prompt: `Title: ${title}\n\nDescription: ${(description || "").slice(0, 1000)}`,
+      maxOutputTokens: 10,
       temperature: 0,
+      abortSignal: AbortSignal.timeout(5000),
     });
 
-    const raw = (completion.choices[0]?.message?.content ?? "")
+    const raw = text
       .trim()
       .toLowerCase();
 

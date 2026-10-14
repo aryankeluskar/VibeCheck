@@ -106,7 +106,7 @@ const YoutubePanel = forwardRef<YoutubePanelHandle, Props>(function YoutubePanel
             &#9654;
           </div>
           <p className="text-neon-cyan/25 text-xs tracking-wider uppercase">
-            Paste a YouTube URL or generate with AI
+            Pick a video from the library, upload a clip, or paste a YouTube URL
           </p>
         </div>
       </div>
@@ -278,6 +278,8 @@ const YoutubePanel = forwardRef<YoutubePanelHandle, Props>(function YoutubePanel
       <video
         ref={videoRef}
         src={`/api/video/${videoId}`}
+        crossOrigin="anonymous"
+        playsInline
         controls
         autoPlay
         className="absolute inset-0 w-full h-full object-contain"

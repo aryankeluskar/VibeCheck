@@ -2,7 +2,8 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import UrlInput from "./components/UrlInput";
-import GenerateInput from "./components/GenerateInput";
+import LibraryInput from "./components/LibraryInput";
+import { upload } from "@vercel/blob/client";
 import YoutubePanel from "./components/YoutubePanel";
 import type { YoutubePanelHandle } from "./components/YoutubePanel";
 import CameraPanel from "./components/CameraPanel";
@@ -63,7 +64,7 @@ import type { SessionStats } from "./lib/sessionStats";
 
 type ScoreType = "perfect" | "great" | "ok" | "almost" | "miss";
 
-type InputMode = "url" | "generate";
+type InputMode = "library" | "url";
 type DownloadStatus = "idle" | "downloading" | "done" | "error";
 type ExtractionStatus = "idle" | "extracting" | "done";
 type SegmentationStatus = "idle" | "segmenting" | "done" | "error" | "unavailable";
@@ -139,7 +140,7 @@ export default function Home() {
   const [replayPaused, setReplayPaused] = useState(false);
   const [replayProgress, setReplayProgress] = useState(0);
   const [mode, setMode] = useState<AppMode>("dance");
-  const [inputMode, setInputMode] = useState<InputMode>("url");
+  const [inputMode, setInputMode] = useState<InputMode>("library");
   const [generatePhase, setGeneratePhase] = useState("");
   const [classificationStatus, setClassificationStatus] = useState<ClassificationStatus>("idle");
   const [modeOverlaySeq, setModeOverlaySeq] = useState(0);
@@ -204,9 +205,11 @@ export default function Home() {
   };
 
   const handleUrl = useCallback(async (url: string) => {
-    const id = extractVideoId(url);
+    // Accepts a YouTube URL or a library id (YouTube id or uploaded "up_…" id)
+    const id = extractVideoId(url) ?? (/^(up_[\w-]{6,40}|[\w-]{11})$/.test(url) ? url : null);
     if (!id) {
-      alert("Could not extract a YouTube video ID from that URL.");
+      setDownloadStatus("error");
+      setDownloadError("Could not find a YouTube video ID in that URL.");
       return;
     }
 
@@ -523,14 +526,14 @@ export default function Home() {
     stopWebcamRecording()
       .then(async (blob) => {
         if (!blob) return;
-        const res = await fetch("/api/recording/upload", {
-          method: "POST",
-          body: blob,
+        // Straight to Vercel Blob (function bodies are capped at 4.5 MB)
+        const { url } = await upload(`recordings/${crypto.randomUUID()}.webm`, blob, {
+          access: "public",
+          handleUploadUrl: "/api/upload",
+          contentType: "video/webm",
+          multipart: blob.size > 20 * 1024 * 1024,
         });
-        if (res.ok) {
-          const data = await res.json();
-          setRecordingUrl(data.url);
-        }
+        setRecordingUrl(url);
       })
       .catch((err) => {
         console.error("Webcam recording upload failed:", err);
@@ -953,28 +956,20 @@ export default function Home() {
 
         <div className="flex-1 max-w-xl mx-8 flex flex-col gap-1.5">
           <div className="flex gap-1 justify-center">
-            <button
-              onClick={() => setInputMode("url")}
-              className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
-                inputMode === "url"
-                  ? "border-neon-cyan/60 text-neon-cyan bg-neon-cyan/10"
-                  : "border-neon-cyan/15 text-neon-cyan/40 hover:text-neon-cyan/60"
-              }`}
-              style={{ fontFamily: "var(--font-audiowide)" }}
-            >
-              YouTube URL
-            </button>
-            <button
-              onClick={() => setInputMode("generate")}
-              className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
-                inputMode === "generate"
-                  ? "border-neon-cyan/60 text-neon-cyan bg-neon-cyan/10"
-                  : "border-neon-cyan/15 text-neon-cyan/40 hover:text-neon-cyan/60"
-              }`}
-              style={{ fontFamily: "var(--font-audiowide)" }}
-            >
-              AI Generate
-            </button>
+            {(["library", "url"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setInputMode(m)}
+                className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
+                  inputMode === m
+                    ? "border-neon-cyan/60 text-neon-cyan bg-neon-cyan/10"
+                    : "border-neon-cyan/15 text-neon-cyan/40 hover:text-neon-cyan/60"
+                }`}
+                style={{ fontFamily: "var(--font-audiowide)" }}
+              >
+                {m === "library" ? "Library" : "YouTube URL"}
+              </button>
+            ))}
           </div>
           {inputMode === "url" ? (
             <UrlInput
@@ -983,7 +978,11 @@ export default function Home() {
               lastSubmittedUrl={lastSubmittedUrl}
             />
           ) : (
-            <GenerateInput onSubmit={handleGenerate} disabled={downloadStatus === "downloading"} />
+            <LibraryInput
+              onSelect={handleUrl}
+              activeId={videoId}
+              disabled={downloadStatus === "downloading"}
+            />
           )}
         </div>
 

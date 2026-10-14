@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { generateText, type ModelMessage } from "ai";
+import { routed, speak } from "../../lib/ai";
 import type { AppMode } from "../../shared/mode";
 
 const DANCE_COACH_PROMPT = `You're a hype dance coach in the room with someone learning choreography in real-time. You'll get a JSON pose snapshot with context — reply with ONE spoken coaching line (max 15 words). This will be read aloud via TTS so write it exactly as spoken words.
@@ -58,18 +59,11 @@ Reply with ONLY the coaching line. No quotes, no JSON.`;
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      return NextResponse.json(
-        { message: "Set OPENAI_API_KEY in .env.local to enable AI coach!" },
-        { status: 200 }
-      );
-    }
-
-    const { summary, history, mode } = await req.json() as {
+    const { summary, history, mode, voice = true } = await req.json() as {
       summary: unknown;
       history: unknown;
       mode?: AppMode;
+      voice?: boolean;
     };
 
     if (!summary) {
@@ -80,21 +74,13 @@ export async function POST(req: NextRequest) {
     }
 
     const isGym = mode === "gym";
-    const systemPrompt = isGym ? GYM_COACH_PROMPT : DANCE_COACH_PROMPT;
-
-    const openai = new OpenAI({ apiKey });
-
-    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
-      { role: "system", content: systemPrompt },
-    ];
+    const messages: ModelMessage[] = [];
 
     // Include conversation history (up to 16 messages for better context)
     if (Array.isArray(history)) {
       for (const msg of history.slice(-16)) {
-        messages.push({
-          role: msg.role as "user" | "assistant",
-          content: msg.content,
-        });
+        if (msg?.role !== "user" && msg?.role !== "assistant") continue;
+        messages.push({ role: msg.role, content: String(msg.content) });
       }
     }
 
@@ -103,79 +89,22 @@ export async function POST(req: NextRequest) {
       content: `Current pose snapshot:\n${JSON.stringify(summary, null, 2)}`,
     });
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const { text, response } = await generateText({
+      ...routed("coach"),
+      system: isGym ? GYM_COACH_PROMPT : DANCE_COACH_PROMPT,
       messages,
-      max_tokens: 80,
+      maxOutputTokens: 80,
       temperature: 0.95,
-      presence_penalty: 0.6,  // Discourage repeating tokens from prior output
-      frequency_penalty: 0.4, // Discourage repeating common phrases
+      presencePenalty: 0.6, // Discourage repeating tokens from prior output
+      frequencyPenalty: 0.4, // Discourage repeating common phrases
+      maxRetries: 0,
+      abortSignal: AbortSignal.timeout(5000),
     });
 
-    const message =
-      completion.choices[0]?.message?.content?.trim() ?? "Keep moving!";
+    const message = text.trim().replace(/^["']|["']$/g, "") || "Keep moving!";
+    const audio = voice ? await speak(message, isGym ? "gym" : "dance") : undefined;
 
-    // Generate speech audio via ElevenLabs TTS
-    let audio: string | undefined;
-    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-    if (elevenLabsKey) {
-      try {
-        // Voice IDs — pick energetic voices suited to coaching
-        // Dance: "Rachel" (21m00Tcm4TlvDq8ikWAM) — bright & expressive
-        // Gym:   "Adam"   (pNInz6obpgDQGcFmaJgB) — deep & authoritative
-        const voiceId = isGym
-          ? "pNInz6obpgDQGcFmaJgB"
-          : "21m00Tcm4TlvDq8ikWAM";
-
-        const ttsRes = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-          {
-            method: "POST",
-            headers: {
-              "xi-api-key": elevenLabsKey,
-              "Content-Type": "application/json",
-              Accept: "audio/mpeg",
-            },
-            body: JSON.stringify({
-              text: message,
-              model_id: "eleven_turbo_v2_5",
-              voice_settings: {
-                stability: 0.4,
-                similarity_boost: 0.75,
-                style: 0.6,
-                use_speaker_boost: true,
-              },
-            }),
-          }
-        );
-
-        if (ttsRes.ok) {
-          const buf = Buffer.from(await ttsRes.arrayBuffer());
-          audio = buf.toString("base64");
-        } else {
-          console.error("ElevenLabs TTS error:", ttsRes.status, await ttsRes.text());
-        }
-      } catch (ttsErr) {
-        console.error("ElevenLabs TTS error (falling back to text only):", ttsErr);
-      }
-    } else {
-      // Fallback to OpenAI TTS if no ElevenLabs key
-      try {
-        const ttsRes = await openai.audio.speech.create({
-          model: "tts-1-hd",
-          voice: isGym ? "onyx" : "shimmer",
-          input: message,
-          response_format: "mp3",
-          speed: 1.15,
-        });
-        const buf = Buffer.from(await ttsRes.arrayBuffer());
-        audio = buf.toString("base64");
-      } catch (ttsErr) {
-        console.error("OpenAI TTS fallback error:", ttsErr);
-      }
-    }
-
-    return NextResponse.json({ message, audio });
+    return NextResponse.json({ message, audio, model: response.modelId });
   } catch (err) {
     console.error("Coach API error:", err);
     return NextResponse.json(

@@ -11,15 +11,19 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^4.0.113",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/drawing_utils": "^0.3.1675466124",
     "@mediapipe/pose": "^0.5.1675469404",
     "@vercel/blob": "^2.2.0",
+    "@vercel/sandbox": "3.8.0",
+    "ai": "^7.0.140",
     "next": "16.1.6",
     "openai": "^6.22.0",
     "qrcode.react": "^4.2.0",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
