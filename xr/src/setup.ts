@@ -197,8 +197,15 @@ export function setupScreen(world: World) {
       allowBtn.textContent = 'Camera allowed';
       allowBtn.disabled = true;
       await startCamera(pick.deviceId);
-    } catch {
-      say('Camera permission was denied. Allow it in the browser settings and reload.');
+    } catch (err) {
+      // NotReadableError: another tab or app holds the camera (only one can).
+      say(
+        (err as Error)?.name === 'NotReadableError'
+          ? 'The camera is busy in another tab or app. Close it and tap Allow camera again.'
+          : 'Camera permission was denied. Allow it in the browser settings and reload.',
+      );
+      allowBtn.disabled = false;
+      allowBtn.textContent = 'Allow camera';
     }
   };
   allowBtn.addEventListener('click', allowCamera);

@@ -11,7 +11,7 @@
  *   node scripts/quest-drive.mjs click <selector>  # click on the headset page (counts as a user tap)
  *   node scripts/quest-drive.mjs eval '<js>'       # evaluate in the headset page
  *   node scripts/quest-drive.mjs shot [file]       # screenshot of the 2D page (not the XR view)
- *   node scripts/quest-drive.mjs view [file]       # headset compositor capture via adb screencap
+ *   node scripts/quest-drive.mjs view [file]       # what the wearer sees, passthrough + XR (Meta's screenshot service)
  *
  * Needs adb (developer mode on, USB debugging allowed in the headset).
  */
@@ -42,8 +42,20 @@ if (cmd === "open") {
 }
 
 if (cmd === "view") {
-  const file = rest[0] ?? join(out, `view-${Date.now()}.png`);
-  writeFileSync(file, execFileSync(ADB, ["exec-out", "screencap", "-p"]));
+  // adb screencap is black in XR; the system screenshot service captures the
+  // composited view (passthrough included) into /sdcard/Oculus/Screenshots.
+  const dir = "/sdcard/Oculus/Screenshots";
+  const newest = () => adb("shell", "ls", "-t", dir).split("\n")[0].trim();
+  const before = newest();
+  adb("shell", "am", "startservice", "-n", "com.oculus.metacam/.capture.CaptureService", "-a", "TAKE_SCREENSHOT");
+  let name = before;
+  for (let i = 0; i < 20 && name === before; i++) {
+    await new Promise((r) => setTimeout(r, 250));
+    name = newest();
+  }
+  await new Promise((r) => setTimeout(r, 500)); // let the JPEG finish writing
+  const file = rest[0] ?? join(out, `view-${Date.now()}.jpg`);
+  adb("pull", `${dir}/${name}`, file);
   console.log(file);
   process.exit(0);
 }
