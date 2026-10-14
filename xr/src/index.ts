@@ -8,6 +8,7 @@
 import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
 import { MirrorSystem } from './mirror-system.js';
+import { ControlsSystem } from './controls.js';
 import { installAgent } from './agent.js';
 import { startBeacon } from './beacon.js';
 import { session } from './session.js';
@@ -23,5 +24,6 @@ World.create(
   projectOptions,
 ).then((world) => {
   world.registerSystem(MirrorSystem);
+  world.registerSystem(ControlsSystem);
   setupScreen(world);
 });
