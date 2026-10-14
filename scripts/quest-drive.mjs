@@ -4,7 +4,10 @@
  * DevTools socket is forwarded over ADB and we talk CDP to the /xr page.
  *
  *   node scripts/quest-drive.mjs open [url]        # open /xr?beacon=1 on the headset, keep it awake
- *   node scripts/quest-drive.mjs state             # print mirrorCoach state from the headset page
+ *   node scripts/quest-drive.mjs state             # mirrorCoach.agent.status() from the headset page
+ *   node scripts/quest-drive.mjs help              # the page's agent actions
+ *   node scripts/quest-drive.mjs do <action> [json]  # e.g. do calibrate '{"distance":3}'  (see xr/src/agent.ts)
+ *   node scripts/quest-drive.mjs log [n]           # the page's event timeline
  *   node scripts/quest-drive.mjs click <selector>  # click on the headset page (counts as a user tap)
  *   node scripts/quest-drive.mjs eval '<js>'       # evaluate in the headset page
  *   node scripts/quest-drive.mjs shot [file]       # screenshot of the 2D page (not the XR view)
@@ -115,8 +118,19 @@ const STATE = `(() => {
 })()`;
 
 try {
-  if (cmd === "state") console.log(JSON.stringify(await evaluate(STATE), null, 2));
-  else if (cmd === "click") {
+  const hasAgent = await evaluate("!!window.mirrorCoach?.agent");
+  if (cmd === "state") {
+    console.log(JSON.stringify(await evaluate(hasAgent ? "mirrorCoach.agent.status()" : STATE), null, 2));
+  } else if (cmd === "help" || cmd === "do" || cmd === "log") {
+    if (!hasAgent) throw new Error("This page has no mirrorCoach.agent (old build?). Reload the tab.");
+    const expr =
+      cmd === "help"
+        ? "mirrorCoach.agent.help()"
+        : cmd === "log"
+          ? `mirrorCoach.agent.log(${Number(rest[0]) || 40})`
+          : `mirrorCoach.agent.do(${JSON.stringify(rest[0])}, ${rest[1] ?? "undefined"})`;
+    console.log(JSON.stringify(await evaluate(expr), null, 2));
+  } else if (cmd === "click") {
     // A real tap (trusted input), so the page gets user activation for XR and audio.
     const rect = await evaluate(
       `(() => { const r = document.querySelector(${JSON.stringify(rest[0])})?.getBoundingClientRect(); return r && { x: r.x + r.width / 2, y: r.y + r.height / 2 }; })()`,

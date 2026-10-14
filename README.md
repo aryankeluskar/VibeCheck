@@ -156,7 +156,10 @@ With developer mode on and the headset plugged in by USB (accept *Allow USB debu
 ```bash
 node scripts/quest-drive.mjs open "https://vercel-ff-five.vercel.app/xr?beacon=1&v=FILJpZiAFo0"   # open on the headset, keep it awake
 curl -s http://127.0.0.1:9222/json               # tabs (after any other command); pick one with TARGET=<id>
-TARGET=21 node scripts/quest-drive.mjs state      # live tracking fps, scores, coach line, calibration
+TARGET=21 node scripts/quest-drive.mjs state      # mirrorCoach.agent.status(): fps, scores, coach line, calibration
+node scripts/quest-drive.mjs help                 # every agent action
+node scripts/quest-drive.mjs do calibrate '{"distance":3.2}'   # any action, e.g. selectClip, enter, finishRun, layout
+node scripts/quest-drive.mjs log                  # event timeline: setup, XR, runs, errors
 node scripts/quest-drive.mjs click '#enter'       # a real tap on the headset page
 ```
 
@@ -295,6 +298,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 - **Check other branches before claiming or starting a TODO** (see [Team](#team)): `git fetch --all --prune && git branch -r --sort=-committerdate`, then `git log --oneline master..origin/<branch>`. Never claim work that another branch already claims or touches.
 - **Pull before you push; commit small and often.** `master` auto-deploys to production; every other branch gets a public preview (see Deploying). Re-open the URL after each deploy.
 - Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
+- **Agents: drive `/xr` through `mirrorCoach.agent`** (`help`, `status`, `log`, `do`; see [AGENTS.md](./AGENTS.md#working-on-the-xr-app-as-an-agent-xr)). New XR behavior gets a registered action and a verifier check.
 - **XR changes: run `node scripts/xr-verify.mjs` and look at the screenshots before pushing** (see [Verify XR without a headset](#verify-xr-without-a-headset)). A typecheck doesn't prove the panels render or the flow works.
 - Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
 - Debug the headset from the console: `mirrorCoach.engine.state` (score, limbs, fps, coach line) and `mirrorCoach.calibration`.

@@ -4,7 +4,9 @@
  */
 
 import { CameraFacing, CameraUtils, VisibilityState, type World } from '@iwsdk/core';
+import { registerAction } from './agent.js';
 import { beaconInfo } from './beacon.js';
+import { logEvent } from './events.js';
 import { session, type RefLayout } from './session.js';
 import { cancelSpeech, unlockSpeech } from '../../app/shared/speech';
 
@@ -29,6 +31,7 @@ export function setupScreen(world: World) {
   const say = (msg: string) => {
     status.textContent = msg;
     beaconInfo.setupStatus = msg;
+    logEvent(`setup ${msg}`);
   };
   const refresh = () => (enterBtn.disabled = !(refReady && cameraReady));
 
@@ -58,6 +61,7 @@ export function setupScreen(world: World) {
   // Reference video: create the element, then load (or analyze) its pose timeline
   const loadReference = async (id: string) => {
     const token = ++loadToken;
+    beaconInfo.clip = id;
     refReady = false;
     refresh();
     const meta = library.find((v) => v.id === id);
@@ -168,7 +172,7 @@ export function setupScreen(world: World) {
     refresh();
   };
 
-  allowBtn.addEventListener('click', async () => {
+  const allowCamera = async () => {
     try {
       const devices = await CameraUtils.getDevices(true);
       beaconInfo.cameras = devices.map((d) => ({ label: d.label, facing: d.facing }));
@@ -196,7 +200,8 @@ export function setupScreen(world: World) {
     } catch {
       say('Camera permission was denied. Allow it in the browser settings and reload.');
     }
-  });
+  };
+  allowBtn.addEventListener('click', allowCamera);
   cameraSelect.addEventListener('change', () => startCamera(cameraSelect.value));
 
   // Each Enter tap is one attempt. Aborting (refused session, leaving XR)
@@ -292,5 +297,37 @@ export function setupScreen(world: World) {
       reference.currentTime = 0;
       reference.play().catch(() => {});
     })();
+  });
+
+  // Agent actions for the setup screen (see agent.ts).
+  registerAction('clips', 'Library clips: [{id, title, mode}]', () => library);
+  registerAction('selectClip', 'Load a clip: {id}. Resolves when its video and poses are ready', async (a: { id: string }) => {
+    if (!library.some((v) => v.id === a?.id)) throw new Error(`No clip ${a?.id}. Use do('clips').`);
+    videoSelect.value = a.id;
+    await loadReference(a.id);
+    return { ready: refReady, setup: status.textContent };
+  });
+  registerAction('allowCamera', 'Ask for camera permission and start the best camera (passthrough on Quest)', async () => {
+    await allowCamera();
+    return { cameraReady, cameras: beaconInfo.cameras, setup: status.textContent };
+  });
+  registerAction('pickCamera', 'Switch camera by label substring or deviceId: {label} | {deviceId}', async (a: { label?: string; deviceId?: string }) => {
+    const opt = [...cameraSelect.options].find(
+      (o) => o.value === a?.deviceId || (!!a?.label && (o.textContent ?? '').includes(a.label)),
+    );
+    if (!opt) throw new Error(`No camera matching ${JSON.stringify(a)}. Cameras: ${[...cameraSelect.options].map((o) => o.textContent).join(' | ')}`);
+    cameraSelect.value = opt.value;
+    await startCamera(opt.value);
+    return { cameraReady, setup: status.textContent };
+  });
+  registerAction('sees', 'What the camera sees: {sees: "mirror" | "direct"}', (a: { sees: 'mirror' | 'direct' }) => {
+    session.engine.cameraSeesMirror = a?.sees === 'mirror';
+    setSeg('sees', 'sees', a?.sees === 'mirror' ? 'mirror' : 'direct');
+    return a?.sees;
+  });
+  registerAction('enter', 'Tap Enter Mirror (MR). WebXR needs a user gesture: quest-drive and xr-verify provide one', () => {
+    if (enterBtn.disabled) throw new Error(`Enter is disabled: ${status.textContent}`);
+    enterBtn.click();
+    return 'entering';
   });
 }

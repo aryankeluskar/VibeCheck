@@ -8,12 +8,14 @@
 import { World } from '@iwsdk/core';
 import projectOptions from 'virtual:iwsdk-project';
 import { MirrorSystem } from './mirror-system.js';
+import { installAgent } from './agent.js';
 import { startBeacon } from './beacon.js';
 import { session } from './session.js';
 import { setupScreen } from './setup.js';
 
-// Debug handle for teammates/agents: `mirrorCoach.engine.state` in the console.
+// Handle for teammates and agents: `mirrorCoach.agent.help()` in the console (see agent.ts).
 (window as unknown as { mirrorCoach: typeof session }).mirrorCoach = session;
+installAgent();
 startBeacon();
 
 World.create(

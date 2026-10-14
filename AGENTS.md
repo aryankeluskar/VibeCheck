@@ -29,6 +29,22 @@ Sources (re-check if something seems off; organizers mark some details "to confi
 - Hackathon page / submission portal: https://community.vercel.com/hackathons/fast-forward-hack
 - Showcase: https://community.vercel.com/hackathons/fast-forward-hack/showcase
 
+## Working on the XR app as an agent (`xr/`)
+
+Drive and inspect `/xr` through its agent API, not DOM clicks or internals. It lives at `window.mirrorCoach.agent` (source: `xr/src/agent.ts`):
+
+- `help()` lists the actions: `clips`, `selectClip {id}`, `allowCamera`, `pickCamera {label}`, `sees {sees}`, `enter`, `play`, `pause`, `restart`, `finishRun`, `goAgain`, `layout {layout}`, `recenter`, `feed {on}`, `calibrate {distance,hfov,offsetX,offsetY}`, `exitXR`.
+- `status()` returns one JSON snapshot: setup step, camera, XR state, tracking fps, scores, coach line, calibration, report.
+- `log(n)` returns the event timeline: setup steps, engine status, XR visibility, runs, agent calls, errors.
+- `do(name, args)` runs an action.
+
+Where to use it:
+
+- **Real Quest (USB or Wi-Fi ADB):** `node scripts/quest-drive.mjs state | help | log | do <action> '<json>'`. Use `TARGET=<tab id>` to pick a tab.
+- **Headless emulator:** `node scripts/xr-verify.mjs` runs the whole flow end to end and must pass before any XR change is pushed.
+
+When you add XR behavior, register an action for it in the module that owns it, using `registerAction(name, help, run)`. Log state changes with `logEvent()` from `xr/src/events.ts`. Add a check to `scripts/xr-verify.mjs`.
+
 ## Event
 
 - Wednesday, October 14, 2026, 10:00am–6:00pm Pacific, San Francisco.

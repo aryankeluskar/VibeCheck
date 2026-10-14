@@ -19,6 +19,7 @@ export const beaconInfo = {
   setupStatus: '',
   xrVisibility: 'non-immersive',
   report: 'none',
+  clip: '',
 };
 
 export function startBeacon() {

@@ -127,6 +127,20 @@ try {
   if (card) writeFileSync(join(out, "04-report-card.png"), Buffer.from(card.split(",")[1], "base64"));
   check(/ready/.test(done.report), `report card filled from /api/report (${done.report})`);
 
+  // Agent API (xr/src/agent.ts): actions registered, timeline recorded, calibrate round-trips.
+  const agentCheck = await page.evaluate(async () => {
+    const a = window.mirrorCoach.agent;
+    const actions = Object.keys(a.help());
+    const before = { ...a.status().calibration };
+    const after = await a.do("calibrate", { distance: before.distance + 0.1 });
+    await a.do("calibrate", before);
+    return { actions, log: a.log(80), calibrated: Math.abs(after.distance - before.distance - 0.1) < 1e-6 };
+  });
+  summary.agent = { actions: agentCheck.actions, log: agentCheck.log.slice(-25) };
+  check(agentCheck.actions.length >= 15, `agent API exposes ${agentCheck.actions.length} actions`);
+  check(agentCheck.log.some((l) => l.includes("run finished")), "agent log records the finished run");
+  check(agentCheck.calibrated, "agent calibrate action applies and restores");
+
   await page.keyboard.press("Space");
   await page.waitForTimeout(1500);
   const again = await state();

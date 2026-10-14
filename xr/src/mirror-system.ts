@@ -32,8 +32,10 @@ import {
 } from '@iwsdk/core';
 import { HudPanel, OverlayPanel, ReferencePanel } from './panels.js';
 import { fetchReport, ReportPanel, summarize } from './report.js';
+import { registerAction } from './agent.js';
 import { beaconInfo } from './beacon.js';
-import { LAYOUTS, saveCalibration, session } from './session.js';
+import { logEvent } from './events.js';
+import { LAYOUTS, saveCalibration, session, type RefLayout } from './session.js';
 
 const HINT = 'A play · B restart · X layout · Y camera · sticks calibrate';
 const DEADZONE = 0.25;
@@ -72,9 +74,42 @@ export class MirrorSystem extends createSystem({}) {
     this.hud = new HudPanel();
     this.report = new ReportPanel();
 
+    // Agent actions for the immersive session (see agent.ts).
+    registerAction('play', 'Play the reference', () => session.reference?.play());
+    registerAction('pause', 'Pause the reference', () => session.reference?.pause());
+    registerAction('restart', 'Restart the run from 0:00', () => this.restart());
+    registerAction('finishRun', 'End the run now and show the report card', () => this.finishRun(true));
+    registerAction('goAgain', 'Hide the report card and start the next run', () => this.goAgain());
+    registerAction('layout', 'Reference position: {layout: "left" | "top" | "right"}', (a: { layout: RefLayout }) => {
+      if (!LAYOUTS.includes(a?.layout)) throw new Error(`layout must be one of ${LAYOUTS.join(', ')}`);
+      session.layout = a.layout;
+      this.layoutPanels();
+      return session.layout;
+    });
+    registerAction('recenter', 'Re-anchor the panels in front of the current head pose', () => this.layoutPanels());
+    registerAction('feed', 'Show or hide the camera feed under the skeleton: {on: boolean}', (a: { on: boolean }) => {
+      this.overlay.feedVisible = !!a?.on;
+      return this.overlay.feedVisible;
+    });
+    registerAction(
+      'calibrate',
+      'Overlay calibration, saved on this device: any of {distance (m), hfov (deg), offsetX (m), offsetY (m)}',
+      (a: Partial<Record<'distance' | 'hfov' | 'offsetX' | 'offsetY', number>>) => {
+        const c = session.calibration;
+        for (const k of ['distance', 'hfov', 'offsetX', 'offsetY'] as const) {
+          if (typeof a?.[k] === 'number' && Number.isFinite(a[k])) c[k] = a[k]!;
+        }
+        this.applyCalibration();
+        saveCalibration(c);
+        return { ...c };
+      },
+    );
+    registerAction('exitXR', 'End the immersive session (back to the setup screen)', () => this.world.session?.end());
+
     this.cleanupFuncs.push(
       this.world.visibilityState.subscribe((state) => {
         beaconInfo.xrVisibility = String(state);
+        logEvent(`xr ${state}`);
         // Re-anchor panels in front of the user a few frames into the session,
         // once the headset pose is real.
         if (state !== VisibilityState.NonImmersive) this.relayoutIn = 15;
@@ -194,13 +229,17 @@ export class MirrorSystem extends createSystem({}) {
     this.report.mesh.visible = true;
     this.overlay.root.visible = false;
     beaconInfo.report = this.report.status;
+    logEvent(`run finished: grade ${run.grade}, avg ${run.avg}, peak ${run.peak}, ${stats.scoreTimeline.length} samples`);
     const token = ++this.reportToken;
     fetchReport(run)
       .then(
         (r) => token === this.reportToken && this.report.setReport(r),
         () => token === this.reportToken && this.report.setFailed(),
       )
-      .finally(() => (beaconInfo.report = this.report.status));
+      .finally(() => {
+        beaconInfo.report = this.report.status;
+        logEvent(`report ${this.report.status}`);
+      });
   }
 
   private goAgain() {
@@ -208,6 +247,7 @@ export class MirrorSystem extends createSystem({}) {
     this.report.hide();
     this.overlay.root.visible = true;
     beaconInfo.report = 'none';
+    logEvent('run restarted');
     this.restart();
   }
 

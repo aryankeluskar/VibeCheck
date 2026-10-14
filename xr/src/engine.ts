@@ -36,6 +36,7 @@ import {
   type ScoreType,
 } from '../../app/lib/sessionStats';
 import { setDuckTarget, speak } from '../../app/shared/speech';
+import { logEvent } from './events.js';
 import type { AppMode } from '../../app/shared/mode';
 
 export type { NormalizedLandmark, DetailedComparison };
@@ -164,6 +165,7 @@ export class CoachEngine {
   }
 
   setStatus(status: string) {
+    if (status !== this.state.status) logEvent(`engine ${status}`);
     this.state.status = status;
     this.version++;
   }
