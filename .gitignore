@@ -46,3 +46,6 @@ __pycache__/
 jiggle-wiggle-devpost.md
 # IWSDK mirror app build output (built by `pnpm build:xr`)
 /public/xr
+
+# Local tooling for scripts/library (venv, models, downloads)
+/.tools

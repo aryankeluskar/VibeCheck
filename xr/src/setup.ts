@@ -78,8 +78,8 @@ export function setupScreen(world: World) {
       const video = document.createElement('video');
       video.playsInline = true;
       video.preload = 'auto';
-      // Loop: with hands only (no controllers) there is no way to restart a
-      // finished clip, and a judge may put the headset on mid-routine.
+      // Practice on repeat: with hands only (no controllers) there is no way
+      // to restart a finished clip, and a judge may put the headset on mid-routine.
       video.loop = true;
       video.src = src;
       const previous = session.reference;

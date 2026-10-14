@@ -20,7 +20,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 | --- | --- |
 | 2D app on Vercel (library, upload, YouTube, live pose, scoring, voice coach, report card) | ✅ deployed |
 | All AI through **Vercel AI Gateway** (coach, vision scoring, report, classification, TTS) with fallbacks | ✅ verified locally |
-| Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ |
+| Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ 14 curated clips (9 dance, 5 workout), compressed to 540p, pose timelines precomputed, so nothing waits on a download or analysis |
 | YouTube download: local yt-dlp → Blob ✅ · **Vercel Sandbox** yt-dlp ⚠️ blocked by YouTube's bot check unless `YTDLP_PROXY` / `YTDLP_COOKIES` is set |
 | **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach |
 | On a **real Quest 3** in front of a mirror | ⚠️ headset-only risks fixed in code (see T1), calibration defaults set (T2), **still not tested on a headset**, the #1 TODO |
@@ -45,7 +45,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 ```
 
 **In the headset (`xr/`):**
-1. The setup screen (2D, before entering XR) loads the library, downloads the clip into memory, and fetches its pose timeline. If no device has analyzed the clip yet, it runs MediaPipe over it and saves the timeline for everyone.
+1. The setup screen (2D, before entering XR) loads the library, downloads the clip into memory (5–10 MB for curated clips), and fetches its pose timeline. Curated clips ship one computed offline. For anything else, the first device to open it runs MediaPipe over it and saves the timeline for everyone.
 2. **Camera permission is requested before entering XR.** Quest Browser exposes the passthrough cameras to `getUserMedia` as "camera 1/2, facing back". IWSDK's `CameraUtils` finds them; the stream is opened directly.
 3. In the immersive session, `MirrorSystem` runs every XR frame (window `requestAnimationFrame` doesn't fire in immersive mode). It sends camera frames to MediaPipe Pose (lite) at about 15 Hz.
 4. `CoachEngine` compares your pose to the reference frame at the video's current time in **reflection space**: you follow the video the way you'd follow a dance-studio mirror. Limb names are swapped back to your real body for labels and voice, because a mirror flips left and right.
@@ -99,6 +99,43 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 
 **Add a reference video:** in the 2D app use **Library → + Upload clip**, or **YouTube URL** (works locally via yt-dlp; it's stored in Blob, so the deployed app and headset see it right away).
 
+### Reference library (`scripts/library/`)
+
+The curated clips are listed in [`scripts/library/clips.json`](./scripts/library/clips.json) (`id` is the YouTube id; optional `start`/`end` trim in seconds). `ingest.mjs` processes each clip, four at a time:
+
+1. Downloads it with yt-dlp.
+2. Trims it and re-encodes to 540p at about 1 Mbps, with a keyframe every second and faststart.
+3. Runs `poses.py` (MediaPipe PoseLandmarker *heavy*, 0.25 s step, follows one performer).
+4. Uploads the mp4, the meta and the timeline to Blob.
+
+```bash
+vercel env pull .env.local                                            # BLOB_READ_WRITE_TOKEN
+node --env-file=.env.local scripts/library/ingest.mjs                 # all clips (~5 min)
+node --env-file=.env.local scripts/library/ingest.mjs <id> [<id>...]  # add or redo some
+node scripts/library/ingest.mjs --dry-run <id>                        # check quality, no upload
+```
+
+Needs `yt-dlp`, `ffmpeg` and `uv`. `uv` runs `poses.py` with its inline dependencies on Python 3.12. Work files go in `.tools/` (gitignored). Each line prints `detected` (the share of frames with a person) and `fullBody` (the share with nose, wrists and ankles all visible). Keep clips with one performer, facing the camera, a fixed camera and no cuts: aim for `detected` ≥ 0.9.
+
+The order in `clips.json` is the order in the library dropdown. Anything uploaded later appears above it. The `/api/poses` PUT keeps the first timeline saved, so a browser's coarser pass never replaces the offline one.
+
+| Mode | Clip | Credit (YouTube) |
+| --- | --- | --- |
+| dance | Rat Dance · tutorial | Bizzy Boom |
+| dance | Macarena · step by step | wikiHow |
+| dance | Greedy (Tate McRae) · beginner choreo | Tiana Shern |
+| dance | The Griddy · tutorial | 1NINEFIVE |
+| dance | The Floss · step by step | wikiHow |
+| dance | Zumba warm-ups: Let's Go, Aguita, Marimba | Z-Therapy Holly Corrente |
+| dance | Sharara · easy choreo | Boomoves |
+| gym | High knees · 1 min | Olena |
+| gym | Jumping jacks · 1 min | GVSU Human Resources |
+| gym | Squats · 20 reps | Roberta's Gym Love |
+| gym | Wide squats · 1 min | WatchFit |
+| gym | Shadow boxing · 1 min | ABOVEBOXING |
+
+These are third-party YouTube videos, used as demo references for a hackathon prototype and credited above. They are not ours to redistribute. Before any public launch, replace them with clips we record or license.
+
 **Test on a Quest 3:**
 1. Open `https://vercel-ff-five.vercel.app/xr` in Quest Browser.
 2. Pick the video, then tap **Allow camera**. Choose a camera labelled *(passthrough)*, set *Camera sees my reflection*, and pick a reference position.
@@ -141,6 +178,8 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 
 4 members. Pick whatever TODO you want and put your name on it (edit this file or say so in the group chat).
 
+> **Check other branches before you claim a TODO (everyone, every agent).** Claims and work in progress often sit on a branch that hasn't reached `master` yet. Run `git fetch --all --prune`, then `git branch -r --sort=-committerdate`, then `git log --oneline master..origin/<branch>` for each recent branch, and `gh pr list`. If a branch claims the TODO (a name next to it) or already changes the files it touches, pick another one or coordinate in the group chat. When you claim a TODO, push that one-line README change straight to `master` so everyone sees it.
+
 | # | Name | GitHub |
 | --- | --- | --- |
 | 1 | Aryan Keluskar | [@aryankeluskar](https://github.com/aryankeluskar) |
@@ -157,8 +196,7 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 - [ ] **T2 Mirror calibration** (Ali): set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
   - Defaults now: distance 3.4 m (reflection depth for a user 1.7 m from the mirror), hfov 71°, offsetY −0.03 m, offsetX 0. Sources and reasoning are in the comment above `DEFAULT_CALIBRATION`. Not measured on a headset.
   - On the headset: stand 1.7 m from the mirror, press **Y** to show the feed, align with the sticks, then copy `calibration` from `/api/debug` into `DEFAULT_CALIBRATION`. To learn which lens "camera 1" is, cover the left front camera with a finger: if the feed goes dark it's the left one and offsetX should be about −0.035, otherwise about +0.035. Open `/xr?recalibrate=1` to drop a saved calibration.
-- [ ] **T3 Demo reference clips** (Ali): pick 1–2 short (30–60 s), full-body, front-facing clips with clear moves. Add them through the 2D app and open each once on the laptop so its pose timeline is cached before the headset loads it. Prefer clips we recorded ourselves (no rights issues).
-  - Check the cache: `curl -sI https://vercel-ff-five.vercel.app/api/poses/<id> | head -1` returns 307 when cached and 404 when not. If it's 404 after opening the clip in the 2D app, that browser already had a local copy and skipped the upload; open it in a private window. Without the cache the headset analyzes the clip itself, which is slow.
+- [x] **T3 Demo reference clips**: 14 clips (9 dance, 5 workout) are in the library with pose timelines precomputed. See [Reference library](#reference-library-scriptslibrary).
 - [ ] **T4 Audio check in headset** (Ali): reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
   - Code side done: the music fades to 25% while the coach talks. The coach voice now reuses one audio element that is unlocked by the Enter tap, so the browser can't block lines spoken later in XR. Still needs an ears-on check in the headset.
 
@@ -166,7 +204,7 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 - [ ] **T5 Spatial UI**: replace the canvas HUD with an IWSDK UIKit panel (`iwsdk-ui` skill) with play/pause, restart and layout buttons for hand-tracking users (no controllers).
 - [ ] **T6 Hand tracking input**: pinch to play/pause, and `GrabSystem.useHandPinchForGrab` for moving panels.
 - [ ] **T7 Vision anchor in XR**: blend `/api/score` (Llama 4 Scout vision) into the XR score every 3 s, as the 2D app does (`app/lib/groqScoring.ts`). Capture from `session.camera` and the reference video.
-- [ ] **T8 Session summary in XR**: when the video ends, show the report card (`/api/report`) on a panel.
+- [ ] **T8 Session summary in XR** (Aryan, in progress): when the video ends, show the report card (`/api/report`) on a panel.
 
 **P2, nice to have**
 - [ ] **T9 Backup demo video**: screen-record the IWER emulator run and the real headset cast. Upload it and add it to the submission links.
@@ -222,6 +260,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 
 ## Conventions for humans and agents
 
+- **Check other branches before claiming or starting a TODO** (see [Team](#team)): `git fetch --all --prune && git branch -r --sort=-committerdate`, then `git log --oneline master..origin/<branch>`. Never claim work that another branch already claims or touches.
 - **Pull before you push; commit small and often.** `master` auto-deploys to production; every other branch gets a public preview (see Deploying). Re-open the URL after each deploy.
 - Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
 - Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
