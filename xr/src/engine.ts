@@ -162,6 +162,8 @@ export class CoachEngine {
     } catch {
       // fall through to local analysis
     }
+    // Don't analyze while the live model is still downloading/compiling.
+    await this.poseLoading?.catch(() => {});
     const timeline = await extractPoses(src, onProgress, 0.25);
     this.timeline = timeline;
     fetch(`/api/poses/${videoId}`, {
@@ -169,6 +171,28 @@ export class CoachEngine {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(timeline),
     }).catch(() => {});
+  }
+
+  /**
+   * Download and compile the live MediaPipe model (~12 MB) ahead of time, on
+   * the 2D screen, so the XR session neither waits for it nor stalls while
+   * WASM compiles. One shared in-flight load: a second call (or a second Enter
+   * tap) must not create a second instance.
+   */
+  preload(opts: { lite: boolean }): Promise<any> {
+    if (!this.poseLoading) {
+      const loading = loadPose().then(async (pose: any) => {
+        pose.setOptions({ modelComplexity: opts.lite ? 0 : 1 });
+        pose.onResults((r: PoseResults) => this.onResults(r));
+        await pose.initialize?.();
+        return pose;
+      });
+      this.poseLoading = loading;
+      loading.catch(() => {
+        if (this.poseLoading === loading) this.poseLoading = null;
+      });
+    }
+    return this.poseLoading;
   }
 
   /** Start live tracking. Call after loadReference (MediaPipe is a per-page singleton). */
@@ -182,22 +206,7 @@ export class CoachEngine {
     this.smoothed = 0;
     if (!this.pose) {
       this.setStatus('Loading pose model…');
-      // Share one in-flight load: a second Enter tap must not create a second
-      // MediaPipe instance (they misbehave side by side).
-      this.poseLoading ??= loadPose().then(async (pose: any) => {
-        pose.setOptions({ modelComplexity: opts.lite ? 0 : 1 });
-        pose.onResults((r: PoseResults) => this.onResults(r));
-        // Download the wasm + model now rather than on the first frame, so
-        // "Tracking" means tracking and the video doesn't start early.
-        await pose.initialize?.();
-        return pose;
-      });
-      try {
-        this.pose = await this.poseLoading;
-      } catch (err) {
-        this.poseLoading = null;
-        throw err;
-      }
+      this.pose = await this.preload(opts);
     }
     this.setStatus('Tracking');
   }

@@ -6,6 +6,7 @@
 import { CameraFacing, CameraUtils, VisibilityState, type World } from '@iwsdk/core';
 import { beaconInfo } from './beacon.js';
 import { session, type RefLayout } from './session.js';
+import { unlockSpeech } from '../../app/shared/speech';
 
 type LibraryVideo = { id: string; title: string; mode: 'dance' | 'gym' };
 
@@ -87,6 +88,8 @@ export function setupScreen(world: World) {
       if (token !== loadToken) return;
       progress.style.width = '100%';
       refReady = true;
+      // Fetch + compile the live pose model now, while the user allows the camera.
+      session.engine.preload({ lite: params.get('full') !== '1' }).catch(() => {});
       say(cameraReady ? 'Ready. Put on the headset and enter.' : 'Reference ready. Now allow the camera.');
     } catch (err) {
       if (token === loadToken) say(`Could not analyze that video: ${err instanceof Error ? err.message : err}`);
@@ -228,6 +231,8 @@ export function setupScreen(world: World) {
       world.launchXR();
       watchSession();
     }
+    // Unlock the coach voice inside the click; later lines play outside any gesture.
+    unlockSpeech();
     // Start playback inside the click so audio is allowed; pause until tracking starts.
     const unlock = reference.play().then(() => reference.pause()).catch(() => {});
     session.started = true;

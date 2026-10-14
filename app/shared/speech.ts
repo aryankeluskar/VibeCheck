@@ -66,6 +66,32 @@ export function setMuted(value: boolean): void {
   if (value) cancelSpeech();
 }
 
+// One reusable element, played once inside a click by unlockSpeech(). Some
+// browsers only let an element play outside a gesture if it was first played
+// inside one, so a fresh `new Audio()` per coach line can stay silent in XR.
+let sharedAudio: HTMLAudioElement | null = null;
+let speechSeq = 0;
+let currentUrl: string | null = null;
+const SILENT_WAV =
+  "data:audio/wav;base64,UklGRsQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YaAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+
+/** Call synchronously inside a click (e.g. Enter) so later coach lines can play. */
+export function unlockSpeech(): void {
+  if (typeof window === "undefined") return;
+  sharedAudio ??= new Audio();
+  if (isSpeaking) return;
+  sharedAudio.src = SILENT_WAV;
+  sharedAudio.play().catch(() => {});
+}
+
+function release(): void {
+  if (currentUrl) URL.revokeObjectURL(currentUrl);
+  currentUrl = null;
+  currentAudio = null;
+  isSpeaking = false;
+  unduck();
+}
+
 export function speak(audioBase64: string): void {
   if (typeof window === "undefined") return;
   if (isSpeaking || muted) return;
@@ -75,19 +101,18 @@ export function speak(audioBase64: string): void {
     { type: "audio/mpeg" }
   );
   const url = URL.createObjectURL(blob);
-  const audio = new Audio(url);
+  const audio = sharedAudio ?? new Audio();
+  audio.src = url;
 
+  const token = ++speechSeq;
   isSpeaking = true;
   currentAudio = audio;
+  currentUrl = url;
   duck();
 
+  // Ignore events from a clip that was cancelled or replaced.
   const done = () => {
-    // Ignore a stale clip finishing after cancelSpeech() or a newer clip.
-    if (currentAudio !== audio) return;
-    isSpeaking = false;
-    currentAudio = null;
-    URL.revokeObjectURL(url);
-    unduck();
+    if (token === speechSeq) release();
   };
   audio.onended = done;
   audio.onerror = done;
@@ -99,10 +124,7 @@ export function isSpeechPlaying(): boolean {
 }
 
 export function cancelSpeech(): void {
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio = null;
-  }
-  isSpeaking = false;
-  unduck();
+  speechSeq++;
+  currentAudio?.pause();
+  release();
 }

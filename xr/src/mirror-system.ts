@@ -200,6 +200,8 @@ export class MirrorSystem extends createSystem({}) {
 
     const now = performance.now();
     session.engine.tick(now);
+    this.refPanel?.refreshVideo(now);
+    this.overlay.refreshVideo(now);
     this.handleInput(delta);
 
     const engine = session.engine;

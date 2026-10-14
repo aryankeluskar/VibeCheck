@@ -91,6 +91,20 @@ function landmarkWithNeck(lm: NormalizedLandmark[]): NormalizedLandmark[] {
 const visible = (p: NormalizedLandmark | undefined) => !!p && (p.visibility ?? 0) >= 0.3;
 
 /**
+ * three's VideoTexture only refreshes from requestVideoFrameCallback, which
+ * runs in the window's rendering step. That step (like window rAF) can stop
+ * during an immersive session on Quest, freezing the picture while audio
+ * plays on. Called from the XR frame loop, this re-uploads at most ~30 Hz.
+ */
+function refreshVideoTexture(texture: VideoTexture | null, nowMs: number, last: { t: number }) {
+  const video = texture?.image as HTMLVideoElement | undefined;
+  if (!texture || !video || video.readyState < 2) return;
+  if (nowMs - last.t < (video.paused ? 250 : 33)) return;
+  last.t = nowMs;
+  texture.needsUpdate = true;
+}
+
+/**
  * Head-locked overlay. The headset's passthrough camera moves with the head,
  * so a plane fixed in head space covering the camera's field of view keeps
  * camera-image coordinates registered with what the user sees.
@@ -125,6 +139,12 @@ export class OverlayPanel {
     mat.map = this.feedTexture;
     mat.needsUpdate = true;
     this.mirrored = mirrored;
+  }
+
+  private readonly feedRefresh = { t: 0 };
+  /** Keep the camera feed live in XR; see refreshVideoTexture. */
+  refreshVideo(nowMs: number) {
+    if (this.feed.visible) refreshVideoTexture(this.feedTexture, nowMs, this.feedRefresh);
   }
 
   get feedVisible() {
@@ -265,6 +285,12 @@ export class ReferencePanel {
     this.root.add(this.backing, this.screen);
     this.resize(video, widthM);
     video.addEventListener('loadedmetadata', () => this.resize(video, widthM));
+  }
+
+  private readonly refresh = { t: 0 };
+  /** Keep the reference picture live in XR; see refreshVideoTexture. */
+  refreshVideo(nowMs: number) {
+    refreshVideoTexture(this.texture, nowMs, this.refresh);
   }
 
   resize(video: HTMLVideoElement, widthM: number) {
