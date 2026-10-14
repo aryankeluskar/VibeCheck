@@ -192,7 +192,7 @@ These are third-party YouTube videos, used as demo references for a hackathon pr
 **P0, must happen for eligibility and the demo**
 - [ ] **T1 Real-headset smoke test**: open `/xr` on a Quest 3 from the production URL. Check that a *facing back* camera shows up, permission works, XR launches, and tracking fps is above 8 (shown on the HUD). Report what breaks.
 - [ ] **T2 Mirror calibration**: set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
-- [ ] **T3 Demo reference clips**: pick 1–2 short (30–60 s), full-body, front-facing clips with clear moves. Add them through the 2D app and open each once on the laptop so its pose timeline is cached before the headset loads it. Prefer clips we recorded ourselves (no rights issues).
+- [x] **T3 Demo reference clips**: 14 clips (9 dance, 5 workout) are in the library with pose timelines precomputed. See [Reference library](#reference-library-scriptslibrary).
 - [ ] **T4 Audio check in headset**: reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
 
 **P1, makes the demo land**
