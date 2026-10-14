@@ -251,7 +251,7 @@ It prints PASS/FAIL per step and writes screenshots to `.tools/xr-verify/`: `01-
 
 ## Demo plan
 
-Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.youtube.com/watch?v=kL3udtWY1EE), 2:18). What worked there: a skit-based problem setup in the first 20 s, a **real coach line heard out loud**, an on-camera "it told me my arms are off" moment, and a funny ending (the "F" report card). What we change: that video spent 50 s on breadth (Zoom and generate modes). VR judges score *fun*, *creativity and use of VR*, and *execution*, so we spend that time on the mirror, presence and the spatial layout.
+Based on our earlier demo video ([youtube.com/watch?v=kL3udtWY1EE](https://www.youtube.com/watch?v=kL3udtWY1EE), 2:18). What worked there: a skit-based problem setup in the first 20 s, a **real coach line heard out loud**, an on-camera "it told me my arms are off" moment, and a funny ending (the "F" report card). What we change: that video spent 50 s on breadth (Zoom and generate modes). VR judges score *fun*, *creativity and use of VR*, and *execution*, so we spend that time on the mirror, presence and the spatial layout.
 
 ### Two deliverables, one shoot
 
@@ -262,7 +262,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 | 0:00–0:08 | **Skit:** teammate at a mirror, phone propped up playing a dance tutorial, flailing: *"I've watched this twenty times. What are my arms even doing?"* | Phone |
 | 0:08–0:12 | Puts on the Quest. Title: **Mirror Coach: your mirror finally talks back.** | Phone |
 | 0:12–0:40 | **Hero:** headset POV. The reflection with the colored skeleton, limb labels and dashed ghost; the reference on the left; score climbing. Press **X**: the reference flies to the top. | Quest recording or cast |
-| 0:40–0:55 | **The fix-it moment:** the coach says something specific (e.g. "right arm higher") → the dancer fixes it → that limb turns green → the score jumps. React like the TreeHacks video did. | Quest POV, then a phone over-the-shoulder shot of the real setup |
+| 0:40–0:55 | **The fix-it moment:** the coach says something specific (e.g. "right arm higher") → the dancer fixes it → that limb turns green → the score jumps. React like the earlier video did. | Quest POV, then a phone over-the-shoulder shot of the real setup |
 | 0:55–1:10 | **How it's built**, as fast on-screen text over B-roll: Meta IWSDK `immersive-ar` + Quest passthrough camera → MediaPipe in the browser → Llama 4 Scout via Vercel AI Gateway → voice. Runs from a URL, no install. | Edit |
 | 1:10–1:20 | **Close:** "Any video. Any mirror." + URL. Optional laugh: the dancer gets roasted by the coach. | Phone |
 

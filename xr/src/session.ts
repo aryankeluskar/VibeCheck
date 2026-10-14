@@ -17,7 +17,11 @@ export type Calibration = {
   hfov: number;
   /** How far the headset camera looks down from where the head faces, degrees. */
   pitch: number;
-  /** Camera position from the centre of the eyes, metres (x right, y up, z back). */
+  /**
+   * Camera position from the centre of the eyes, metres (x right, y up, z
+   * back). The Quest lens's own ±3.2 cm sideways is added per camera
+   * (MirrorSystem), so offsetX is only a fine-tune.
+   */
   offsetX: number;
   offsetY: number;
   offsetZ: number;
@@ -25,7 +29,7 @@ export type Calibration = {
   latencyMs: number;
 };
 
-const CALIBRATION_KEY = 'mirror-coach:calibration:v3';
+const CALIBRATION_KEY = 'mirror-coach:calibration:v4';
 /**
  * Quest 3 passthrough camera, measured from the headset's own Camera2
  * calibration (`adb shell dumpsys media.camera`, 2:50pm):
@@ -34,8 +38,8 @@ const CALIBRATION_KEY = 'mirror-coach:calibration:v3';
  *   covers 72.7° x 57.8° (2·atan(640/869) x 2·atan(480/869)).
  * - lens pose rotation 168.9° about x against the 180° camera flip: the
  *   camera looks 11° below where the head faces.
- * - the browser opens the left camera, (-3.2, -1.7, -6.2) cm from the centre
- *   of the eyes.
+ * - lens at (±3.2, -1.7, -6.2) cm from the centre of the eyes: "camera 1"
+ *   is the left lens, "camera 2" the right.
  * - distance: measured live from the body (MirrorSystem.measureDistance);
  *   3.4 m, a user 1.7 m from the mirror, until the first measurement.
  * Fine-tune live with `mirrorCoach.agent.do('calibrate', {...})` or the
@@ -46,7 +50,7 @@ const DEFAULT_CALIBRATION: Calibration = {
   autoDistance: true,
   hfov: 72.7,
   pitch: 11,
-  offsetX: -0.032,
+  offsetX: 0,
   offsetY: -0.017,
   offsetZ: -0.062,
   latencyMs: 60,

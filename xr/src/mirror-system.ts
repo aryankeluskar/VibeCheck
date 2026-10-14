@@ -51,6 +51,11 @@ const DEADZONE = 0.25;
 /** ~1 s of head poses at 90 Hz, to find the pose a camera frame was captured at. */
 const POSE_HISTORY = 96;
 const TORSO = [11, 12, 23, 24];
+/**
+ * Quest 3 passthrough cameras by browser label: "camera 1" is Camera2 id 50,
+ * the left lens; "camera 2" is id 51, the right (dumpsys media.camera).
+ */
+const QUEST_LENS_X: Record<string, number> = { 'camera 1': -0.032, 'camera 2': 0.032 };
 const CALIBRATION_NUMBERS = ['distance', 'hfov', 'pitch', 'offsetX', 'offsetY', 'offsetZ', 'latencyMs'] as const;
 
 export class MirrorSystem extends createSystem({}) {
@@ -204,7 +209,9 @@ export class MirrorSystem extends createSystem({}) {
     // A webcam faces the user and its feed is drawn on the same plane, so any
     // placement lines up.
     const mirror = session.engine.cameraSeesMirror;
-    this.overlay.layout(c.distance, c.hfov, aspect, mirror ? c.pitch : 0, c.offsetX, c.offsetY, mirror ? c.offsetZ : 0);
+    const label = (cam?.srcObject as MediaStream | null)?.getVideoTracks()[0]?.label ?? '';
+    const lensX = mirror ? (QUEST_LENS_X[label.match(/camera \d/)?.[0] ?? ''] ?? 0) : 0;
+    this.overlay.layout(c.distance, c.hfov, aspect, mirror ? c.pitch : 0, lensX + c.offsetX, c.offsetY, mirror ? c.offsetZ : 0);
   }
 
   /**

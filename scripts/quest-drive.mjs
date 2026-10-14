@@ -12,12 +12,17 @@
  *   node scripts/quest-drive.mjs eval '<js>'       # evaluate in the headset page
  *   node scripts/quest-drive.mjs shot [file]       # screenshot of the 2D page (not the XR view)
  *   node scripts/quest-drive.mjs view [file]       # what the wearer sees, passthrough + XR (Meta's screenshot service)
+ *   node scripts/quest-drive.mjs cast [serial]     # wireless cast: Wi-Fi ADB + MQDH's casting window; then unplug USB.
+ *                                                  # Needs a network that lets the laptop reach the headset (venue Wi-Fi may not).
  *
- * Needs adb (developer mode on, USB debugging allowed in the headset).
+ * Needs adb (developer mode on, USB debugging allowed in the headset). Works
+ * over USB or Wi-Fi ADB; with both attached it uses USB (ANDROID_SERIAL overrides).
  */
 
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +35,18 @@ const MQDH_ADB = "/Applications/Meta Quest Developer Hub.app/Contents/Resources/
 const ADB = process.env.ADB ?? (existsSync(MQDH_ADB) ? MQDH_ADB : "adb");
 const adb = (...a) => execFileSync(ADB, a, { encoding: "utf8" });
 const [cmd = "state", ...rest] = process.argv.slice(2);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Attached headsets; Wi-Fi ones have an ip:port serial.
+const devices = adb("devices")
+  .split("\n")
+  .slice(1)
+  .map((l) => l.trim().split(/\s+/))
+  .filter(([, state]) => state === "device")
+  .map(([id]) => id);
+// USB and Wi-Fi at once makes plain `adb` refuse to pick; prefer USB.
+if (!process.env.ANDROID_SERIAL && devices.length > 1) {
+  process.env.ANDROID_SERIAL = devices.find((d) => !d.includes(":")) ?? devices[0];
+}
 const PROD = "https://vercel-ff-five.vercel.app/xr?beacon=1";
 
 if (cmd === "open") {
@@ -38,6 +55,55 @@ if (cmd === "open") {
   // adb shell joins arguments into one remote shell line, so quote the URL.
   adb("shell", `am start -a android.intent.action.VIEW -p com.oculus.browser -d '${rest[0] ?? PROD}'`);
   console.log(`opened ${rest[0] ?? PROD}`);
+  process.exit(0);
+}
+
+if (cmd === "cast") {
+  // Same casting window MQDH opens, pointed at a Wi-Fi ADB connection, so the
+  // cable can come out. Wi-Fi ADB lasts until the headset reboots; after a
+  // reboot plug in once and run this again.
+  let serial = rest[0] ?? devices.find((d) => d.includes(":"));
+  const usb = devices.find((d) => !d.includes(":"));
+  if (!serial && usb) {
+    const ip = execFileSync(ADB, ["-s", usb, "shell", "ip", "-f", "inet", "addr", "show", "wlan0"], { encoding: "utf8" })
+      .match(/inet (\d+\.\d+\.\d+\.\d+)/)?.[1];
+    if (!ip) throw new Error("Headset has no Wi-Fi address; join it to the same network as this laptop.");
+    execFileSync(ADB, ["-s", usb, "tcpip", "5555"]);
+    await sleep(2500);
+    serial = `${ip}:5555`;
+  }
+  if (!serial) throw new Error("No headset: plug it in over USB once (developer mode on) to switch on Wi-Fi ADB.");
+  console.log(adb("connect", serial).trim());
+  execFileSync(ADB, ["-s", serial, "shell", "am", "broadcast", "-a", "com.oculus.vrpowermanager.prox_close"]);
+  const casting = join(dirname(MQDH_ADB), "Casting.app/Contents/MacOS/Casting");
+  if (!existsSync(casting)) throw new Error("Meta Quest Developer Hub isn't installed (it ships the casting app).");
+  // Close a cast that's already running (e.g. MQDH's, over USB): one cast per headset.
+  try {
+    // -x: by process name; -f would also match any shell whose command mentions it.
+    execFileSync("pkill", ["-x", "Casting"]);
+    await sleep(1000);
+  } catch {
+    // none running
+  }
+  // A cast killed mid-stream leaves the headset side stuck; restart it.
+  execFileSync(ADB, ["-s", serial, "shell", "am", "force-stop", "com.oculus.magicislandcastingservice"]);
+  const features = ["input_forwarding", "image_stabilization", "update_device_fov_via_openxr_api", "panel_streaming"];
+  spawn(
+    casting,
+    [
+      // The casting app switches to USB whenever the headset is also plugged
+      // in, so it gets an adb that only sees the Wi-Fi connection.
+      "--adb", join(root, "scripts/adb-wifi.sh"),
+      "--application-caches-dir", join(homedir(), "Library/Application Support/odh/casting"),
+      "--exit-on-close",
+      "--launch-surface", "MQDH",
+      "--target-device", JSON.stringify({ id: serial }),
+      "--features", ...features,
+      "--launch-surface-session-uuid", randomUUID(),
+    ],
+    { detached: true, stdio: "ignore", env: { ...process.env, QUEST_WIFI: serial, QUEST_USB: usb ?? "", REAL_ADB: ADB } },
+  ).unref();
+  console.log(`casting ${serial} over Wi-Fi; the USB cable can come out`);
   process.exit(0);
 }
 
