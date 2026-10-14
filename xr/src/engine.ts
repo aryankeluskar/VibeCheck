@@ -27,6 +27,14 @@ import { extractPoses } from '../../app/lib/videoPoseExtractor';
 import type { PoseTimeline } from '../../app/lib/videoPoseExtractor';
 import { buildPoseSummary, computeScore, resetScoring } from '../../app/shared/scoring';
 import { getCoachMessage, resetCoach } from '../../app/shared/coach';
+import {
+  getSessionStats,
+  recordFrameHit,
+  recordLimbScores,
+  recordScoreSample,
+  resetSessionStats,
+  type ScoreType,
+} from '../../app/lib/sessionStats';
 import { setDuckTarget, speak } from '../../app/shared/speech';
 import type { AppMode } from '../../app/shared/mode';
 
@@ -141,6 +149,19 @@ export class CoachEngine {
   private resultTimes: number[] = [];
   private lastLiveAt = 0;
   private smoothed = 0;
+  private runFrames = 0;
+  private runStart = 0;
+
+  /** Start a fresh run: the report card covers one play-through of the clip. */
+  resetRun() {
+    resetSessionStats();
+    this.runFrames = 0;
+    this.runStart = performance.now();
+  }
+
+  runStats() {
+    return getSessionStats(this.runFrames, performance.now() - this.runStart);
+  }
 
   setStatus(status: string) {
     this.state.status = status;
@@ -204,6 +225,7 @@ export class CoachEngine {
     setDuckTarget(reference);
     resetScoring();
     resetCoach();
+    this.resetRun();
     this.smoothed = 0;
     if (!this.pose) {
       this.setStatus('Loading pose model…');
@@ -282,8 +304,14 @@ export class CoachEngine {
     this.state.worstLimb = human?.worstLimb ?? null;
     this.version++;
 
-    // Coach only while the reference is playing; getCoachMessage throttles itself
+    // Run stats and the coach only count while the reference is playing
     if (!ref || ref.paused || !live) return;
+    this.runFrames++;
+    recordScoreSample(this.state.score);
+    recordFrameHit(hitType(this.state.score));
+    if (human) recordLimbScores(human.limbScores);
+
+    // getCoachMessage throttles itself
     const summary = buildPoseSummary(live, { ...frame, score: this.state.score });
     if (human) summary.reference = human;
     getCoachMessage(summary, this.mode).then((result) => {
@@ -294,4 +322,12 @@ export class CoachEngine {
       if (this.voice && result.audio && this.reference && !this.reference.paused) speak(result.audio);
     });
   }
+}
+
+function hitType(score: number): ScoreType {
+  if (score >= 85) return 'perfect';
+  if (score >= 70) return 'great';
+  if (score >= 50) return 'ok';
+  if (score >= 30) return 'almost';
+  return 'miss';
 }

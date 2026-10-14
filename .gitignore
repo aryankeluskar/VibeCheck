@@ -49,3 +49,6 @@ jiggle-wiggle-devpost.md
 
 # Local tooling for scripts/library (venv, models, downloads)
 /.tools
+
+# Agent worktrees
+/.claude/worktrees
