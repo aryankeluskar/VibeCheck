@@ -447,7 +447,15 @@ export default function Home() {
     extractStripPoses(
       `/api/video/${videoId}`,
       (pct) => setExtractionProgress(pct),
-      TARGET_STRIP_FRAME_COUNT
+      TARGET_STRIP_FRAME_COUNT,
+      (dense) => {
+        // Share the dense timeline so the headset (/xr) skips re-analysis
+        fetch(`/api/poses/${videoId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(dense),
+        }).catch(() => {});
+      }
     )
       .then((timeline) => {
         setPoseTimeline(timeline);

@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/@iwsdk/core/dist/schemas/iwsdk-project.v1.schema.json",
+  "version": "iwsdk.project.v1",
+  "scene": "./public/scenes/main.iwsdk.scene.json",
+  "assets": {
+    "module": "./src/assets"
+  },
+  "components": {
+    "module": "./src/components"
+  },
+  "world": {
+    "xr": {
+      "mode": "ar",
+      "offer": "none",
+      "features": {
+        "handTracking": true
+      }
+    },
+    "input": {
+      "canvasPointerEvents": true
+    },
+    "render": {
+      "near": 0.01,
+      "far": 100,
+      "camera": {
+        "position": [0, 1.6, 0],
+        "lookAt": [0, 1.5, -2]
+      }
+    },
+    "features": {
+      "locomotion": false,
+      "grabbing": true,
+      "physics": false,
+      "sceneUnderstanding": false,
+      "environmentRaycast": false,
+      "camera": true,
+      "spatialUI": {
+        "kit": "horizon"
+      }
+    }
+  },
+  "dev": {
+    "emulator": {
+      "device": "metaQuest3",
+      "environment": "living_room",
+      "injectOnBuild": true,
+      "activation": {
+        "source": "^(localhost|127\\.0\\.0\\.1|.*\\.vercel\\.app)$"
+      }
+    }
+  }
+}

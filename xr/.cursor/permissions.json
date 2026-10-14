@@ -1,0 +1,8 @@
+{
+  "autoRun": {
+    "allow_instructions": [
+      "Allow IWSDK-managed MCP tools from iwsdk-runtime, iwsdk-reference, metavr to run without manual approval."
+    ],
+    "block_instructions": []
+  }
+}

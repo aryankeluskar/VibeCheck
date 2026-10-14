@@ -1,0 +1,18 @@
+packages:
+  - .
+overrides:
+  sharp: 0.35.4
+  three: npm:super-three@0.181.0
+onlyBuiltDependencies:
+  - esbuild
+  - protobufjs
+  - sharp
+ignoredBuiltDependencies:
+  - "@meta-quest/metavr"
+  - onnxruntime-node
+allowBuilds:
+  esbuild: true
+  protobufjs: true
+  sharp: true
+  "@meta-quest/metavr": false
+  onnxruntime-node: false

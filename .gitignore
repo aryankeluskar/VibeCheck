@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
-/node_modules
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -42,3 +42,7 @@ next-env.d.ts
 
 __pycache__/
 .env*.local
+
+jiggle-wiggle-devpost.md
+# IWSDK mirror app build output (built by `pnpm build:xr`)
+/public/xr

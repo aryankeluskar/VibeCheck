@@ -1,0 +1,41 @@
+{
+  "mcp": {
+    "iwsdk-runtime": {
+      "type": "local",
+      "command": [
+        "node",
+        "/Users/aryank/Developer/vercel_ff/xr/node_modules/@iwsdk/cli/dist/cli.js",
+        "mcp",
+        "stdio"
+      ],
+      "enabled": true
+    },
+    "iwsdk-reference": {
+      "type": "local",
+      "command": [
+        "node",
+        "/Users/aryank/Developer/vercel_ff/xr/node_modules/@iwsdk/reference/dist/cli.js"
+      ],
+      "enabled": true
+    },
+    "metavr": {
+      "type": "local",
+      "command": [
+        "node",
+        "/Users/aryank/Developer/vercel_ff/xr/node_modules/@meta-quest/metavr/bin.js",
+        "mcp",
+        "server"
+      ],
+      "enabled": true
+    }
+  },
+  "permission": {
+    "iwsdk-runtime_*": "allow",
+    "iwsdk-reference_*": "allow",
+    "metavr_*": "allow",
+    "skill": {
+      "iwsdk-*": "allow"
+    }
+  },
+  "$schema": "https://opencode.ai/config.json"
+}

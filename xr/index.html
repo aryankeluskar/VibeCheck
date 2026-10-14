@@ -1,0 +1,179 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <link rel="icon" href="data:," />
+    <title>Mirror Coach</title>
+    <style>
+      :root {
+        --bg: #07080d;
+        --panel: rgba(14, 16, 26, 0.92);
+        --line: rgba(34, 211, 238, 0.25);
+        --text: #f4f4f5;
+        --muted: rgba(244, 244, 245, 0.6);
+        --accent: #22d3ee;
+        --accent-2: #f0abfc;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Chakra Petch', 'Segoe UI', system-ui, sans-serif;
+      }
+      #setup {
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        display: grid;
+        place-items: center;
+        padding: 16px;
+        background: radial-gradient(circle at 30% 20%, rgba(34, 211, 238, 0.12), transparent 50%),
+          radial-gradient(circle at 80% 80%, rgba(240, 171, 252, 0.1), transparent 50%), var(--bg);
+        overflow-y: auto;
+      }
+      #setup.hidden {
+        display: none;
+      }
+      .card {
+        width: min(560px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 28px;
+        box-sizing: border-box;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 28px;
+        letter-spacing: 0.04em;
+      }
+      .lede {
+        margin: 0 0 24px;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+      .step {
+        margin-bottom: 20px;
+      }
+      .step label.title {
+        display: block;
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 8px;
+      }
+      select,
+      button {
+        font: inherit;
+        color: var(--text);
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 12px;
+        padding: 12px 14px;
+        font-size: 16px;
+      }
+      select {
+        width: 100%;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .seg button[aria-pressed='true'] {
+        border-color: var(--accent);
+        background: rgba(34, 211, 238, 0.15);
+      }
+      #enter {
+        width: 100%;
+        padding: 16px;
+        font-size: 18px;
+        font-weight: 700;
+        background: linear-gradient(90deg, #0891b2, #c026d3);
+        border: none;
+      }
+      .progress {
+        height: 6px;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 3px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+      .progress > div {
+        height: 100%;
+        width: 0;
+        background: linear-gradient(90deg, var(--accent), var(--accent-2));
+        transition: width 0.2s;
+      }
+      #status {
+        margin-top: 12px;
+        min-height: 20px;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .hint {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.5;
+        margin-top: 6px;
+      }
+      a {
+        color: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <div id="setup">
+      <div class="card">
+        <h1>Mirror Coach</h1>
+        <p class="lede">
+          Stand in front of a mirror wearing your Quest. The headset camera watches your reflection, labels every limb,
+          and a voice coach tells you what to fix, while the reference dancer floats beside the mirror.
+        </p>
+
+        <div class="step">
+          <label class="title" for="video">1 · Reference video</label>
+          <select id="video"><option>Loading library…</option></select>
+          <div class="progress"><div id="ref-progress"></div></div>
+          <div class="hint">Add videos from the <a href="/">2D app</a> (library, upload, or YouTube).</div>
+        </div>
+
+        <div class="step">
+          <label class="title" for="camera">2 · Camera</label>
+          <div class="row">
+            <button id="allow-camera">Allow camera</button>
+            <select id="camera" disabled style="flex: 1; min-width: 200px"><option>Not allowed yet</option></select>
+          </div>
+          <div class="row seg" id="sees" style="margin-top: 8px">
+            <button data-sees="mirror" aria-pressed="true">Camera sees my reflection</button>
+            <button data-sees="direct" aria-pressed="false">Camera faces me</button>
+          </div>
+          <div class="hint">On Quest pick a “facing back” camera and face a mirror. On a laptop, use the webcam and “faces me”.</div>
+        </div>
+
+        <div class="step">
+          <label class="title">3 · Reference position</label>
+          <div class="row seg" id="layout">
+            <button data-layout="left" aria-pressed="true">Left</button>
+            <button data-layout="top" aria-pressed="false">Top</button>
+            <button data-layout="right" aria-pressed="false">Right</button>
+          </div>
+        </div>
+
+        <button id="enter" disabled>Enter Mirror (MR)</button>
+        <div id="status"></div>
+      </div>
+    </div>
+    <div id="scene-container"></div>
+    <script type="module" src="/src/index.ts"></script>
+  </body>
+</html>

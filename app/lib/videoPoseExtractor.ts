@@ -71,13 +71,13 @@ async function prepareExtractionElements(videoSrc: string) {
  */
 export async function extractPoses(
   videoSrc: string,
-  onProgress: (percent: number) => void
+  onProgress: (percent: number) => void,
+  step = 0.1
 ): Promise<PoseTimeline> {
   const { video, canvas, ctx, pose, duration, cleanup } =
     await prepareExtractionElements(videoSrc);
 
   const timeline: PoseTimeline = [];
-  const step = 0.1; // 10fps
 
   // Wrap onResults in a promise-based interface for sequential processing
   let resolveFrame: ((landmarks: NormalizedLandmark[]) => void) | null = null;
@@ -239,7 +239,8 @@ function selectInterestingFrames(
 export async function extractStripPoses(
   videoSrc: string,
   onProgress: (percent: number) => void,
-  targetFrameCount = 20 // Approximate number of frames to display
+  targetFrameCount = 20, // Approximate number of frames to display
+  onDense?: (timeline: PoseTimeline) => void // Full 0.5s-sampled timeline, before strip selection
 ): Promise<StripPoseTimeline> {
   const { video, canvas, ctx, pose, duration, cleanup } =
     await prepareExtractionElements(videoSrc);
@@ -273,6 +274,8 @@ export async function extractStripPoses(
     denseTL.push({ time: t, landmarks, thumbnail });
     onProgress((t / duration) * 80); // Reserve 20% for selection
   }
+
+  onDense?.(denseTL.map(({ time, landmarks }) => ({ time, landmarks })));
 
   // Select most interesting frames
   const selectedTL = selectInterestingFrames(denseTL, targetFrameCount);

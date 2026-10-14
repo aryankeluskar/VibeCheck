@@ -4,11 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm build:xr && next build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build:xr": "npm --prefix xr install --no-audit --no-fund && npm --prefix xr run build",
+    "dev:xr": "npm --prefix xr run dev"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.113",
