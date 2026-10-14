@@ -171,7 +171,7 @@ These are third-party YouTube videos, used as demo references for a hackathon pr
 - Previews are public (no Vercel login), so they open on the Quest too: test a branch on the headset before merging.
 - Every build runs `pnpm build`: the `xr/` typecheck, the `xr/` Vite build, then `next build` (which typechecks the app). A type error fails the deploy instead of shipping.
 - Previews and production share the same Blob library and AI Gateway credits.
-- No Vercel account is needed to push. The repo is on a personal GitHub account, so Vercel deploys commits from any collaborator. Build logs live in the Vercel dashboard (ask Aryan for access) or use the "Details" link on the PR check.
+- No Vercel account is needed to push, but Vercel **blocks** a commit whose author is a teammate's own GitHub account. That includes the squash commit GitHub creates when a teammate's PR is merged, because it takes the PR author. Commits authored by Aryan or by agents (`Claude <noreply@anthropic.com>`) deploy. If production shows "Deployment was blocked", Aryan pushes an empty commit to `master` to redeploy. Build logs live in the Vercel dashboard (ask Aryan for access) or use the "Details" link on the PR check.
 - Quick path for small fixes: push straight to `master`. For anything risky (XR changes before the demo), push a branch, check the preview on the headset, then merge.
 
 ---
