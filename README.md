@@ -177,7 +177,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 - **If anything fails live:** play video A immediately. Have it open in a tab before our slot.
 
 ### Logistics (decide in the next 15 minutes)
-- **Mirror:** find one at the venue (restrooms or the Meta VR room) or buy a full-length one. A sink mirror only shows the upper body, so use an **arm-heavy routine** if that's all we have.
+- **Mirror:** ✅ there is a big mirror next to our table. Shoot and demo there; full-body routines are fine.
 - **Reference clip:** a teammate films a 30–45 s front-facing routine on a phone (no rights issues, and it matches our skit). Upload it in the 2D app, then open it once on the laptop to cache the poses.
 - **Recording:** test the Quest's built-in recorder on an MR session in the first 5 minutes. If passthrough comes out black, film the cast window on a laptop plus a phone shot of the person.
 - **Audio:** make sure the coach voice is audible in the recording and through the AV cast. Ask the AV team at 4:50 whether casting carries Quest audio; otherwise hold a mic near the headset speaker.
@@ -204,6 +204,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 - Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
 - Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
 - Debug the headset from the console: `mirrorCoach.engine.state` (score, limbs, fps, coach line) and `mirrorCoach.calibration`.
+- **Remote headset debugging (no adb needed):** `/xr` posts its state every 2 s. Read it with `curl -s https://vercel-ff-five.vercel.app/api/debug | jq` (camera list and resolution, tracking fps, score, limbs, coach line, calibration, last errors). Add `?beacon=0` to turn it off.
 - IWSDK skills for agents: `xr/.claude/skills` (Claude Code), `xr/.agents` (Codex), `xr/.cursor` (Cursor), plus the Meta-provided `.claude/skills/iwsdk-dev`.
 
 ## Known gotchas

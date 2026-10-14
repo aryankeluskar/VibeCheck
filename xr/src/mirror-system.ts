@@ -29,6 +29,7 @@ import {
   type Entity,
 } from '@iwsdk/core';
 import { HudPanel, OverlayPanel, ReferencePanel } from './panels.js';
+import { beaconInfo } from './beacon.js';
 import { LAYOUTS, saveCalibration, session } from './session.js';
 
 const HINT = 'A play · B restart · X layout · Y camera · sticks calibrate';
@@ -61,6 +62,7 @@ export class MirrorSystem extends createSystem({}) {
 
     this.cleanupFuncs.push(
       this.world.visibilityState.subscribe((state) => {
+        beaconInfo.xrVisibility = String(state);
         // Re-anchor panels in front of the user a few frames into the session,
         // once the headset pose is real.
         if (state !== VisibilityState.NonImmersive) this.relayoutIn = 15;

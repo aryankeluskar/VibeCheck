@@ -4,6 +4,7 @@
  */
 
 import { CameraFacing, CameraUtils, type World } from '@iwsdk/core';
+import { beaconInfo } from './beacon.js';
 import { session, type RefLayout } from './session.js';
 
 type LibraryVideo = { id: string; title: string; mode: 'dance' | 'gym' };
@@ -24,7 +25,10 @@ export function setupScreen(world: World) {
   let cameraReady = false;
   let loadToken = 0;
 
-  const say = (msg: string) => (status.textContent = msg);
+  const say = (msg: string) => {
+    status.textContent = msg;
+    beaconInfo.setupStatus = msg;
+  };
   const refresh = () => (enterBtn.disabled = !(refReady && cameraReady));
 
   // Segmented toggles
@@ -148,6 +152,7 @@ export function setupScreen(world: World) {
   allowBtn.addEventListener('click', async () => {
     try {
       const devices = await CameraUtils.getDevices(true);
+      beaconInfo.cameras = devices.map((d) => ({ label: d.label, facing: d.facing }));
       cameraSelect.innerHTML = '';
       for (const d of devices) {
         const opt = document.createElement('option');
