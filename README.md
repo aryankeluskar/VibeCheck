@@ -23,7 +23,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 | Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ |
 | YouTube download: local yt-dlp → Blob ✅ · **Vercel Sandbox** yt-dlp ⚠️ blocked by YouTube's bot check unless `YTDLP_PROXY` / `YTDLP_COOKIES` is set |
 | **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach |
-| On a **real Quest 3** in front of a mirror | ❌ **not tested yet**, the #1 TODO |
+| On a **real Quest 3** in front of a mirror | ⚠️ headset-only risks fixed in code (see T1), calibration defaults set (T2), **still not tested on a headset**, the #1 TODO |
 
 ---
 
@@ -104,7 +104,7 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 2. Pick the video, then tap **Allow camera**. Choose a camera labelled *(passthrough)*, set *Camera sees my reflection*, and pick a reference position.
 3. Stand about 1.2–1.5 m from a mirror (full-length is best) so the reflection shows your whole body.
 4. Tap **Enter Mirror (MR)**.
-5. If the skeleton isn't on your reflection, press **Y** to show the camera feed and use the sticks to align it. Calibration is saved per device.
+5. If the skeleton isn't on your reflection, press **Y** to show the camera feed and use the sticks to align it. Calibration is saved per device; open `/xr?recalibrate=1` to start from the defaults again.
 
 **Desktop:** `/xr` on localhost or `*.vercel.app` gets the IWER Quest 3 emulator automatically. Use the laptop webcam with *Camera faces me*. Keep the tab in the foreground: Chrome throttles background tabs to 1 fps, which stalls IWSDK.
 
@@ -138,9 +138,15 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 
 **P0, must happen for eligibility and the demo**
 - [ ] **T1 Real-headset smoke test** (Ali): open `/xr` on a Quest 3 from the production URL. Check that a *facing back* camera shows up, permission works, XR launches, and tracking fps is above 8 (shown on the HUD). Report what breaks.
+  - Code side done: Enter now requests the XR session first, inside the click (the browser refuses it a few seconds after a tap, and the old code waited for the pose model). A refused session or leaving XR brings the setup screen back. The pose model (~12 MB) now loads on the setup screen. Video panels refresh from the XR frame loop, since the browser's own video callbacks can stop in XR.
+  - On the headset, while in XR, read `curl -s https://vercel-ff-five.vercel.app/api/debug | jq` and check: `visible` is `"visible"` (if `"hidden"`, the camera and video freeze and we need a different approach), `xr` is `"visible"`, `camera.w`×`camera.h` (expect 1280×960), `engine.fps` > 8, and `ref.t` advancing.
 - [ ] **T2 Mirror calibration** (Ali): set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
+  - Defaults now: distance 2.8 m (reflection depth for a user 1.4 m from the mirror), hfov 71°, offsetY −0.03 m, offsetX 0. Sources and reasoning are in the comment above `DEFAULT_CALIBRATION`. Not measured on a headset.
+  - On the headset: stand 1.4 m from the mirror, press **Y** to show the feed, align with the sticks, then copy `calibration` from `/api/debug` into `DEFAULT_CALIBRATION`. To learn which lens "camera 1" is, cover the left front camera with a finger: if the feed goes dark it's the left one and offsetX should be about −0.035, otherwise about +0.035. Open `/xr?recalibrate=1` to drop a saved calibration.
 - [ ] **T3 Demo reference clips** (Ali): pick 1–2 short (30–60 s), full-body, front-facing clips with clear moves. Add them through the 2D app and open each once on the laptop so its pose timeline is cached before the headset loads it. Prefer clips we recorded ourselves (no rights issues).
+  - Check the cache: `curl -sI https://vercel-ff-five.vercel.app/api/poses/<id> | head -1` returns 307 when cached and 404 when not. If it's 404 after opening the clip in the 2D app, that browser already had a local copy and skipped the upload; open it in a private window. Without the cache the headset analyzes the clip itself, which is slow.
 - [ ] **T4 Audio check in headset** (Ali): reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
+  - Code side done: the music fades to 25% while the coach talks. The coach voice now reuses one audio element that is unlocked by the Enter tap, so the browser can't block lines spoken later in XR. Still needs an ears-on check in the headset.
 
 **P1, makes the demo land**
 - [ ] **T5 Spatial UI**: replace the canvas HUD with an IWSDK UIKit panel (`iwsdk-ui` skill) with play/pause, restart and layout buttons for hand-tracking users (no controllers).
