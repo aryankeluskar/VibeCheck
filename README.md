@@ -14,7 +14,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 
 ---
 
-## Status (updated 1:10pm)
+## Status (updated 2:18pm)
 
 | Area | State |
 | --- | --- |
@@ -22,7 +22,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 | All AI through **Vercel AI Gateway** (coach, vision scoring, report, classification, TTS) with fallbacks | ✅ verified locally |
 | Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ 14 curated clips (9 dance, 5 workout), compressed to 540p, pose timelines precomputed, so nothing waits on a download or analysis |
 | YouTube download: local yt-dlp → Blob ✅ · **Vercel Sandbox** yt-dlp ⚠️ blocked by YouTube's bot check unless `YTDLP_PROXY` / `YTDLP_COOKIES` is set |
-| **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach |
+| **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach, end-of-run report card (checked end to end by `scripts/xr-verify.mjs`) |
 | On a **real Quest 3** in front of a mirror | ⚠️ headset-only risks fixed in code (see T1), calibration defaults set (T2), **still not tested on a headset**, the #1 TODO |
 
 ---
@@ -54,10 +54,12 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
    - **Overlay:** head-locked and transparent, sized to the camera's field of view. It shows the skeleton colored per limb, limb score labels, the target posture, and a dashed ghost of the reference pose fitted to your body.
    - **Reference video panel:** grabbable.
    - **HUD:** score, limb bars, coach line, status. Also grabbable.
+   - **Report card:** appears in front of you when the clip finishes a full play-through (see 8). Grabbable.
 7. The coach goes to `/api/coach` every 3.5–5.5 s, only while the video plays. It gets the per-limb comparison, deltas, milestones and a rotating style, and returns one spoken line plus an mp3. The reference music fades to 25% while the coach speaks.
+8. **End of a run:** when the looping clip wraps back to the start, the video pauses, the skeleton hides and a report card appears about 1.15 m in front of you. Grade, average and peak match, and per-limb averages show right away from the run's stats (`app/lib/sessionStats.ts`, shared with the 2D app). The headline, persona and tips arrive from `/api/report` (Llama 4 Maverick via AI Gateway) a few seconds later. **A** starts the next run. Runs where nobody was tracked are skipped.
 
-**Controls in the headset:** **A** play/pause · **B** restart · **X** move the reference (left → top → right) · **Y** show/hide the camera feed (alignment aid) · **right stick** ↕ overlay size, ↔ x offset · **left stick** ↕ y offset · **trigger** on a panel: grab and move it.
-Desktop/emulator keys: `Space`, `R`, `L`, `C`, arrows, `[` `]`.
+**Controls in the headset:** **A** play/pause · **B** restart · **X** move the reference (left → top → right) · **Y** show/hide the camera feed (alignment aid) · **right stick** ↕ overlay size, ↔ x offset · **left stick** ↕ y offset · **trigger** on a panel: grab and move it. When the report card is up, **A** (or **B**) starts the next run.
+Desktop/emulator keys: `Space`, `R`, `L`, `C`, arrows, `[` `]`, and `G` to end the run now and show the report card (also `mirrorCoach.finishRun()` in the console).
 
 ### Model routing (AI Gateway)
 
@@ -147,6 +149,19 @@ These are third-party YouTube videos, used as demo references for a hackathon pr
 
 **Desktop:** `/xr` on localhost or `*.vercel.app` gets the IWER Quest 3 emulator automatically. Use the laptop webcam with *Camera faces me*. Keep the tab in the foreground: Chrome throttles background tabs to 1 fps, which stalls IWSDK.
 
+### Verify XR without a headset
+
+`scripts/xr-verify.mjs` runs `/xr` end to end in headless Chromium with the IWER Quest 3 emulator. A fake camera plays a dancer clip (mirrored, so it follows the reference), so tracking, scoring, the coach and the report card all run for real:
+
+```bash
+PORT=3100 pnpm dev & pnpm build:xr           # serve /xr locally (rebuild after xr/ changes)
+node scripts/xr-verify.mjs                   # Rat Dance (15 s): setup → MR → run end → report → Go again
+node scripts/xr-verify.mjs --clip <id> --finish-after 12   # longer clips: end the run early
+node scripts/xr-verify.mjs --base https://vercel-ff-git-<branch>-aryan-keluskars-projects.vercel.app   # a preview
+```
+
+It prints PASS/FAIL per step and writes screenshots to `.tools/xr-verify/`: `01-setup`, `02-coaching`, `03-report-loading`, `04-report`, `05-go-again`, plus `04-report-card.png`, the card's texture at full resolution, for checking typography. The emulator's wide field of view makes panels look smaller than on a Quest. Needs `ffmpeg` and the Playwright Chromium (`cd xr && ./node_modules/.bin/playwright install chromium`).
+
 ### Env vars
 
 | Var | Where | Purpose |
@@ -206,7 +221,7 @@ These are third-party YouTube videos, used as demo references for a hackathon pr
 - [ ] **T5 Spatial UI**: replace the canvas HUD with an IWSDK UIKit panel (`iwsdk-ui` skill) with play/pause, restart and layout buttons for hand-tracking users (no controllers).
 - [ ] **T6 Hand tracking input**: pinch to play/pause, and `GrabSystem.useHandPinchForGrab` for moving panels.
 - [ ] **T7 Vision anchor in XR**: blend `/api/score` (Llama 4 Scout vision) into the XR score every 3 s, as the 2D app does (`app/lib/groqScoring.ts`). Capture from `session.camera` and the reference video.
-- [ ] **T8 Session summary in XR** (Aryan, in progress): when the video ends, show the report card (`/api/report`) on a panel.
+- [x] **T8 Session summary in XR** (Aryan): the report card appears after each full play-through (see How it works, step 8). Verified end to end in the emulator with `scripts/xr-verify.mjs`.
 
 **P2, nice to have**
 - [ ] **T9 Backup demo video**: screen-record the IWER emulator run and the real headset cast. Upload it and add it to the submission links.
@@ -265,6 +280,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 - **Check other branches before claiming or starting a TODO** (see [Team](#team)): `git fetch --all --prune && git branch -r --sort=-committerdate`, then `git log --oneline master..origin/<branch>`. Never claim work that another branch already claims or touches.
 - **Pull before you push; commit small and often.** `master` auto-deploys to production; every other branch gets a public preview (see Deploying). Re-open the URL after each deploy.
 - Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
+- **XR changes: run `node scripts/xr-verify.mjs` and look at the screenshots before pushing** (see [Verify XR without a headset](#verify-xr-without-a-headset)). A typecheck doesn't prove the panels render or the flow works.
 - Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
 - Debug the headset from the console: `mirrorCoach.engine.state` (score, limbs, fps, coach line) and `mirrorCoach.calibration`.
 - **Remote headset debugging (no adb needed):** open `/xr?beacon=1` and it posts its state every 5 s. Read it with `curl -s https://vercel-ff-five.vercel.app/api/debug | jq` (camera list and resolution, tracking fps, score, limbs, coach line, calibration, last errors). It's opt-in because every post is a Vercel Blob write, and the video library lives in the same Blob store.

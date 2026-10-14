@@ -18,6 +18,7 @@ export const beaconInfo = {
   cameras: [] as { label: string; facing: string }[],
   setupStatus: '',
   xrVisibility: 'non-immersive',
+  report: 'none',
 };
 
 export function startBeacon() {
@@ -63,6 +64,7 @@ export function startBeacon() {
         ? { t: +ref.currentTime.toFixed(1), dur: +(ref.duration || 0).toFixed(1), paused: ref.paused, w: ref.videoWidth }
         : null,
       timelineFrames: session.engine.timeline?.length ?? 0,
+      report: beaconInfo.report,
       engine: {
         status: s.status,
         fps: s.trackingFps,

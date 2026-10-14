@@ -15,7 +15,9 @@
  *   Y  show/hide camera feed (alignment aid)
  *   Right stick  ↕ overlay size, ↔ overlay x · Left stick ↕ overlay y
  *   Trigger on a panel: grab and move it
- * Desktop keys: Space, R, L, C, arrows/[ ] for calibration.
+ * When the clip finishes a full play-through the video pauses and a report
+ * card appears in front of you; A (or B) starts the next run.
+ * Desktop keys: Space, R, L, C, arrows/[ ] for calibration, G to end the run now.
  */
 
 import {
@@ -29,6 +31,7 @@ import {
   type Entity,
 } from '@iwsdk/core';
 import { HudPanel, OverlayPanel, ReferencePanel } from './panels.js';
+import { fetchReport, ReportPanel, summarize } from './report.js';
 import { beaconInfo } from './beacon.js';
 import { LAYOUTS, saveCalibration, session } from './session.js';
 
@@ -41,6 +44,10 @@ export class MirrorSystem extends createSystem({}) {
   private refPanel: ReferencePanel | null = null;
   private refEntity: Entity | null = null;
   private hudEntity: Entity | null = null;
+  private report!: ReportPanel;
+  private reportEntity: Entity | null = null;
+  private reportToken = 0;
+  private lastRefT = 0;
   private built = false;
   /** What the panels currently show; the setup screen can swap these between sessions. */
   private boundRef: HTMLVideoElement | null = null;
@@ -63,6 +70,7 @@ export class MirrorSystem extends createSystem({}) {
     this.tmp = new Vector3();
     this.overlay = new OverlayPanel();
     this.hud = new HudPanel();
+    this.report = new ReportPanel();
 
     this.cleanupFuncs.push(
       this.world.visibilityState.subscribe((state) => {
@@ -97,7 +105,11 @@ export class MirrorSystem extends createSystem({}) {
     this.refPanel = new ReferencePanel(ref);
     this.refEntity = this.world.createTransformEntity(this.refPanel.root);
     this.hudEntity = this.world.createTransformEntity(this.hud.mesh);
-    for (const e of [this.refEntity, this.hudEntity]) {
+    this.reportEntity = this.world.createTransformEntity(this.report.mesh);
+    this.report.mesh.visible = false;
+    // Console handle for testing the card without dancing a whole clip.
+    Object.assign(session, { finishRun: () => this.finishRun(true), reportStatus: () => this.report.status, reportCanvas: this.report.panel.canvas });
+    for (const e of [this.refEntity, this.hudEntity, this.reportEntity]) {
       e.addComponent(RayInteractable);
       e.addComponent(DistanceGrabbable, { movementMode: MovementMode.MoveFromTarget });
     }
@@ -156,8 +168,64 @@ export class MirrorSystem extends createSystem({}) {
   private restart() {
     const v = session.reference;
     if (!v) return;
+    session.engine.resetRun();
+    this.lastRefT = 0;
     v.currentTime = 0;
     v.play().catch(() => {});
+  }
+
+  /**
+   * End of a run: pause, show the card with local stats right away, then fill
+   * in the coach's verdict from /api/report. `force` skips the guard that
+   * ignores runs where nobody was tracked (desktop testing, key G).
+   */
+  private finishRun(force = false) {
+    const ref = session.reference;
+    if (!ref || !this.reportEntity) return;
+    const stats = session.engine.runStats();
+    if (!force && stats.scoreTimeline.length < 4) {
+      session.engine.resetRun();
+      return;
+    }
+    ref.pause();
+    const run = summarize(stats, session.engine.mode, session.title);
+    this.report.show(run);
+    this.placeReport();
+    this.report.mesh.visible = true;
+    this.overlay.root.visible = false;
+    beaconInfo.report = this.report.status;
+    const token = ++this.reportToken;
+    fetchReport(run)
+      .then(
+        (r) => token === this.reportToken && this.report.setReport(r),
+        () => token === this.reportToken && this.report.setFailed(),
+      )
+      .finally(() => (beaconInfo.report = this.report.status));
+  }
+
+  private goAgain() {
+    this.reportToken++;
+    this.report.hide();
+    this.overlay.root.visible = true;
+    beaconInfo.report = 'none';
+    this.restart();
+  }
+
+  /** Card in front of the user at reading distance, facing them. */
+  private placeReport() {
+    const o = this.reportEntity!.object3D!;
+    const head = this.player.head;
+    head.getWorldPosition(this.headPos);
+    head.getWorldDirection(this.headDir);
+    this.headDir.multiplyScalar(-1);
+    this.headDir.y = 0;
+    if (this.headDir.lengthSq() < 1e-4) this.headDir.set(0, 0, -1);
+    this.headDir.normalize();
+    o.position.copy(this.headPos).addScaledVector(this.headDir, 1.15);
+    o.position.y = this.headPos.y - 0.08;
+    this.tmp.copy(this.headPos);
+    this.tmp.y = o.position.y;
+    o.lookAt(this.tmp);
   }
 
   private cycleLayout() {
@@ -171,8 +239,15 @@ export class MirrorSystem extends createSystem({}) {
     const left = this.input.xr.gamepads.left;
     const kb = this.input.keyboard;
 
-    if (right?.getButtonDown(InputComponent.A_Button) || kb.getKeyDown('Space')) this.togglePlay();
-    if (right?.getButtonDown(InputComponent.B_Button) || kb.getKeyDown('KeyR')) this.restart();
+    const a = right?.getButtonDown(InputComponent.A_Button) || kb.getKeyDown('Space');
+    const b = right?.getButtonDown(InputComponent.B_Button) || kb.getKeyDown('KeyR');
+    if (this.report.mesh.visible) {
+      if (a || b) this.goAgain();
+    } else {
+      if (a) this.togglePlay();
+      if (b) this.restart();
+    }
+    if (kb.getKeyDown('KeyG')) this.finishRun(true);
     if (left?.getButtonDown(InputComponent.X_Button) || kb.getKeyDown('KeyL')) this.cycleLayout();
     if (left?.getButtonDown(InputComponent.Y_Button) || kb.getKeyDown('KeyC')) {
       this.overlay.feedVisible = !this.overlay.feedVisible;
@@ -223,6 +298,14 @@ export class MirrorSystem extends createSystem({}) {
     this.refPanel?.refreshVideo(now);
     this.overlay.refreshVideo(now);
     this.handleInput(delta);
+
+    // The reference loops; a jump from the end back to the start is a finished run.
+    const refNow = session.reference!;
+    const t = refNow.currentTime;
+    if (!refNow.paused && !this.report.mesh.visible && this.lastRefT > refNow.duration - 1 && t < this.lastRefT - 1) {
+      this.finishRun();
+    }
+    this.lastRefT = t;
 
     const engine = session.engine;
     if (engine.version !== this.lastVersion) {
