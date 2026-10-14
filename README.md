@@ -23,7 +23,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 | Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ 14 curated clips (9 dance, 5 workout), compressed to 540p, pose timelines precomputed, so nothing waits on a download or analysis |
 | YouTube download: local yt-dlp → Blob ✅ · **Vercel Sandbox** yt-dlp ⚠️ blocked by YouTube's bot check unless `YTDLP_PROXY` / `YTDLP_COOKIES` is set |
 | **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach, end-of-run report card (checked end to end by `scripts/xr-verify.mjs`) |
-| On a **real Quest 3** in front of a mirror | ⚠️ headset-only risks fixed in code (see T1), calibration defaults set (T2), **still not tested on a headset**, the #1 TODO |
+| On a **real Quest 3** in front of a mirror | ✅ **works (2:30pm, Quest Browser 152)**: passthrough camera 1280×960 (`camera 1/2, facing back`), XR session, tracking at 15 fps, limb scores, target posture, live voice coach. Read over USB with `scripts/quest-drive.mjs`. Calibration still to confirm by eye (T2) |
 
 ---
 
@@ -148,6 +148,21 @@ These are third-party YouTube videos, used as demo references for a hackathon pr
 6. To hand the headset to the next person, leave XR. The setup screen comes back; pick a clip if you like and tap **Enter** again.
 
 **Desktop:** `/xr` on localhost or `*.vercel.app` gets the IWER Quest 3 emulator automatically. Use the laptop webcam with *Camera faces me*. Keep the tab in the foreground: Chrome throttles background tabs to 1 fps, which stalls IWSDK.
+
+### Drive a real Quest from the laptop
+
+With developer mode on and the headset plugged in by USB (accept *Allow USB debugging*, tick *Always allow*), `scripts/quest-drive.mjs` talks to the Quest Browser over ADB and DevTools. No adb typing in the headset needed:
+
+```bash
+node scripts/quest-drive.mjs open "https://vercel-ff-five.vercel.app/xr?beacon=1&v=FILJpZiAFo0"   # open on the headset, keep it awake
+curl -s http://127.0.0.1:9222/json               # tabs (after any other command); pick one with TARGET=<id>
+TARGET=21 node scripts/quest-drive.mjs state      # live tracking fps, scores, coach line, calibration
+node scripts/quest-drive.mjs click '#enter'       # a real tap on the headset page
+```
+
+- It uses Meta Quest Developer Hub's `adb` when installed. Two adb versions on one Mac restart each other's server, and the headset then asks to authorize again.
+- Headset view: `adb shell am startservice -n com.oculus.metacam/.capture.CaptureService -a TAKE_SCREENSHOT`, then pull the newest file from `/sdcard/Oculus/Screenshots/`. Plain `screencap` comes back black.
+- Only one tab can hold the passthrough camera. Close other `/xr` tabs before entering, or the camera fails with *Could not start video source*.
 
 ### Verify XR without a headset
 
