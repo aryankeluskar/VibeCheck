@@ -9,7 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
-    "build:xr": "npm --prefix xr install --include=dev --no-audit --no-fund && npm --prefix xr run build",
+    "build:xr": "npm --prefix xr install --include=dev --no-audit --no-fund && npm --prefix xr run typecheck && npm --prefix xr run build",
     "dev:xr": "npm --prefix xr run dev"
   },
   "dependencies": {
