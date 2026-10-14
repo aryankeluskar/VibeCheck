@@ -9,7 +9,13 @@
  *   │   HUD    │   └──────────────────────────────────┘
  *   └──────────┘
  *
- * Controller map (also printed on the HUD):
+ * Hands (no controllers needed; see controls.ts): point at a button under
+ * the HUD and pinch — Play/Pause, Restart, Layout, Camera, Calibrate (size,
+ * depth and offset nudges, Done), End run; "Go again" on the report card.
+ * Both hands held above the head for a second resumes a paused clip or
+ * starts the next run (read from the tracked pose, not hand tracking).
+ *
+ * Controller map:
  *   A  play / pause        B  restart
  *   X  move reference panel (left → top → right)
  *   Y  show/hide camera feed (alignment aid)
@@ -30,6 +36,7 @@ import {
   VisibilityState,
   type Entity,
 } from '@iwsdk/core';
+import { ControlsSystem } from './controls.js';
 import { HudPanel, OverlayPanel, ReferencePanel } from './panels.js';
 import { fetchReport, ReportPanel, summarize } from './report.js';
 import { registerAction } from './agent.js';
@@ -49,6 +56,7 @@ export class MirrorSystem extends createSystem({}) {
   private report!: ReportPanel;
   private reportEntity: Entity | null = null;
   private reportToken = 0;
+  private controls: ControlsSystem | null = null;
   private lastRefT = 0;
   private built = false;
   /** What the panels currently show; the setup screen can swap these between sessions. */
@@ -148,6 +156,23 @@ export class MirrorSystem extends createSystem({}) {
       e.addComponent(RayInteractable);
       e.addComponent(DistanceGrabbable, { movementMode: MovementMode.MoveFromTarget });
     }
+    // Pinchable buttons under the HUD and on the report card (controls.ts).
+    this.controls = this.world.getSystem(ControlsSystem) ?? null;
+    this.controls?.attach(this.hudEntity, this.reportEntity, {
+      togglePlay: () => this.togglePlay(),
+      restart: () => this.restart(),
+      cycleLayout: () => this.cycleLayout(),
+      toggleFeed: () => (this.overlay.feedVisible = !this.overlay.feedVisible),
+      finishRun: () => this.finishRun(true),
+      goAgain: () => this.goAgain(),
+      calibrationChanged: () => {
+        this.applyCalibration();
+        saveCalibration(session.calibration);
+      },
+      paused: () => !!session.reference?.paused,
+      feedOn: () => this.overlay.feedVisible,
+      reportShown: () => this.report.mesh.visible,
+    });
     this.layoutPanels();
     this.built = true;
   }
@@ -361,7 +386,7 @@ export class MirrorSystem extends createSystem({}) {
         refTime: ref.currentTime,
         refDuration: ref.duration,
         paused: ref.paused,
-        hint: HINT,
+        hint: this.controls?.hint ?? HINT,
       });
     }
   }

@@ -59,6 +59,8 @@ const W = 1600;
 const H = 1000;
 const PAD = 72;
 const COL = 600; // right column start
+/** Width in canvas px of the pinchable Go again button over the footer (0.2 m). */
+const GO_W = 334;
 
 const INK = '#ffffff';
 const INK_2 = 'rgba(255,255,255,0.78)';
@@ -241,16 +243,16 @@ export class ReportPanel {
       );
     }
 
-    // Footer: the one action, as a controller keycap
+    // Footer: the one action. The "Go again" button itself is a separate
+    // pinchable mesh laid over x rx..rx+GO_W (see controls.ts); this is its caption.
     const fy = H - PAD - 8;
     ctx.textAlign = 'left';
-    keycap(ctx, 'A', rx, fy, gc.color);
-    ctx.font = `600 30px ${FONT}`;
+    ctx.font = `600 28px ${FONT}`;
     ctx.fillStyle = INK;
-    ctx.fillText('Go again', rx + 68, fy);
-    ctx.font = `500 24px ${FONT}`;
+    ctx.fillText('Pinch Go again', rx + GO_W + 28, fy - 8);
+    ctx.font = `500 22px ${FONT}`;
     ctx.fillStyle = INK_3;
-    ctx.fillText('Trigger to move this card', rx + 260, fy);
+    ctx.fillText('or hold both hands up · A on a controller', rx + GO_W + 28, fy + 24);
 
     this.panel.texture.needsUpdate = true;
   }
@@ -264,22 +266,6 @@ function stat(ctx: CanvasRenderingContext2D, value: string, label: string, cx: n
   ctx.font = `600 20px ${FONT}`;
   ctx.fillStyle = INK_3;
   spacedCentered(ctx, label, cx, y + 34, 3);
-}
-
-function keycap(ctx: CanvasRenderingContext2D, key: string, x: number, baseline: number, color: string) {
-  const size = 48;
-  const top = baseline - 36;
-  ctx.fillStyle = 'rgba(255,255,255,0.08)';
-  roundRect(ctx, x, top, size, size, 14);
-  ctx.fill();
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.textAlign = 'center';
-  ctx.font = `700 28px ${FONT}`;
-  ctx.fillStyle = color;
-  ctx.fillText(key, x + size / 2, baseline - 2);
-  ctx.textAlign = 'left';
 }
 
 /** Small uppercase labels get positive tracking so letters don't crowd. */

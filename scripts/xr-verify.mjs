@@ -4,8 +4,9 @@
  * IWER Quest 3 emulator (auto-injected on localhost), and a fake camera that
  * plays a dancer clip, so tracking, scoring and the coach run for real.
  *
- * Flow: setup screen → allow camera → Enter Mirror (MR) → coaching → the clip
- * finishes a play-through → report card → A/Space "Go again".
+ * Flow: setup screen → allow camera → Enter Mirror (MR) → coaching → pinch
+ * buttons (emulated controller ray select + the `press` agent action) → the
+ * clip finishes a play-through → report card → select "Go again" on the card.
  * Screenshots and a JSON summary go to .tools/xr-verify/.
  *
  *   PORT=3100 pnpm dev && pnpm build:xr         # serve /xr locally first
@@ -87,6 +88,39 @@ const state = () =>
     };
   });
 const waitFor = (fn, arg, timeout) => page.waitForFunction(fn, arg, { timeout, polling: 250 });
+const buttons = () => page.evaluate(() => window.mirrorCoach.agent.do("buttons"));
+/**
+ * A real ray select through IWER's emulated right controller: aim from beside
+ * the hip at the button's world position, pull the trigger, release. Same
+ * InputSystem path a hand-tracking pinch takes. Returns whether the ray hovered it.
+ */
+const raySelect = (id) =>
+  page.evaluate(async (id) => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const find = async () => (await window.mirrorCoach.agent.do("buttons")).find((b) => b.id === id);
+    const d = window.IWER_DEVICE;
+    const c = d?.controllers?.right;
+    if (!c) return { error: "no IWER controller" };
+    // Otherwise IWER's own desktop UI keeps writing the controller pose.
+    d.controlMode = "programmatic";
+    const b = await find();
+    const from = [0.2, 1.25, -0.1];
+    let dx = b.world[0] - from[0], dy = b.world[1] - from[1], dz = b.world[2] - from[2];
+    const n = Math.hypot(dx, dy, dz);
+    dx /= n; dy /= n; dz /= n;
+    // Rotation taking -Z (the target ray) onto the direction to the button.
+    const q = [dy, -dx, 0, 1 - dz];
+    const qn = Math.hypot(...q);
+    c.position.set(...from);
+    c.quaternion.set(q[0] / qn, q[1] / qn, q[2] / qn, q[3] / qn);
+    await sleep(400);
+    const hovered = (await find()).hovered;
+    c.updateButtonValue("trigger", 1);
+    await sleep(300);
+    c.updateButtonValue("trigger", 0);
+    await sleep(400);
+    return { hovered };
+  }, id);
 
 const summary = { base, clip };
 try {
@@ -107,6 +141,32 @@ try {
   await shot("02-coaching");
   check(coaching.fps > 0, `tracking runs (${coaching.fps} fps)`);
   check(Object.keys(coaching.limbs ?? {}).length > 0, `limb scores present (score ${coaching.score})`);
+
+  // Hands-only controls (xr/src/controls.ts).
+  const bar = await buttons();
+  summary.buttons = bar;
+  const shown = bar.filter((b) => b.shown).map((b) => b.id);
+  check(shown.length >= 6, `button bar shows ${shown.join(", ")}`);
+  const sel = await raySelect("play");
+  const afterSel = await state();
+  check(sel.hovered && afterSel.refPaused === true, `ray select on Pause pauses the clip (hovered ${sel.hovered}${sel.error ? `, ${sel.error}` : ""})`);
+  await page.evaluate(() => window.mirrorCoach.agent.do("press", { button: "play" }));
+  const afterPress = await state();
+  check(afterPress.refPaused !== afterSel.refPaused, `press play toggles (paused ${afterPress.refPaused})`);
+  if (afterPress.refPaused) await page.evaluate(() => window.mirrorCoach.agent.do("play"));
+  const calib = await page.evaluate(async () => {
+    const a = window.mirrorCoach.agent;
+    const before = { ...a.status().calibration };
+    await a.do("press", { button: "calibrate" });
+    const pad = (await a.do("buttons")).filter((b) => b.shown).map((b) => b.id);
+    await a.do("press", { button: "size+" });
+    const hfov = a.status().calibration.hfov;
+    await a.do("press", { button: "done" });
+    const back = (await a.do("buttons")).filter((b) => b.shown).map((b) => b.id);
+    await a.do("calibrate", before);
+    return { pad, back, grew: Math.abs(hfov - before.hfov - 1) < 1e-6 };
+  });
+  check(calib.pad.includes("size+") && calib.grew && calib.back.includes("play"), "calibrate mode: size+ nudges hfov, Done returns to the bar");
 
   if (finishAfter) {
     await page.waitForTimeout(finishAfter * 1000);
@@ -141,12 +201,13 @@ try {
   check(agentCheck.log.some((l) => l.includes("run finished")), "agent log records the finished run");
   check(agentCheck.calibrated, "agent calibrate action applies and restores");
 
-  await page.keyboard.press("Space");
-  await page.waitForTimeout(1500);
+  // Go again with a ray select on the card's own button (the hands path).
+  const go = await raySelect("goAgain");
+  await page.waitForTimeout(1100);
   const again = await state();
   summary.again = again;
   await shot("05-go-again");
-  check(again.report === "none" && again.refPaused === false && again.refT < 3, "Go again hides the card and restarts the clip");
+  check(go.hovered && again.report === "none" && again.refPaused === false && again.refT < 3, `Go again button on the card hides it and restarts the clip (hovered ${go.hovered})`);
 } catch (err) {
   failures.push(String(err.message ?? err).split("\n")[0]);
   console.log(`FAIL  ${failures.at(-1)}`);
