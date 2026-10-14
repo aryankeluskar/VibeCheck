@@ -104,6 +104,10 @@ export function projectReferenceOntoLive(
 export type EngineState = {
   /** Live pose in reflection space (image coords of what the user sees). */
   live: NormalizedLandmark[] | null;
+  /** MediaPipe world landmarks for `live`: metres, hip-centred, camera axes. */
+  liveWorld: NormalizedLandmark[] | null;
+  /** performance.now() when the camera frame behind `live` was sent for tracking. */
+  liveAt: number;
   /** Reference pose mapped onto the live body, same coords as `live`. */
   ghost: NormalizedLandmark[] | null;
   /** Per-limb scores keyed by the user's real limbs. */
@@ -122,6 +126,8 @@ const MAX_REF_DISTANCE_SEC = 1.0;
 export class CoachEngine {
   state: EngineState = {
     live: null,
+    liveWorld: null,
+    liveAt: 0,
     ghost: null,
     limbScores: {},
     worstLimb: null,
@@ -144,6 +150,7 @@ export class CoachEngine {
   private poseLoading: Promise<any> | null = null;
   private inflight = false;
   private lastSend = 0;
+  private sentAt = 0;
   private sendIntervalMs = 66;
   private camera: HTMLVideoElement | null = null;
   private reference: HTMLVideoElement | null = null;
@@ -261,6 +268,7 @@ export class CoachEngine {
       this.inflight = false;
       return;
     }
+    this.sentAt = performance.now();
     this.pose
       .send({ image: cam })
       .catch(() => {})
@@ -281,6 +289,8 @@ export class CoachEngine {
     if (!live && this.state.live && now - this.lastLiveAt < 300) return;
     if (live) this.lastLiveAt = now;
     this.state.live = live;
+    this.state.liveWorld = live ? (results.poseWorldLandmarks ?? null) : null;
+    this.state.liveAt = this.sentAt;
 
     const cam = this.camera;
     const ref = this.reference;

@@ -9,35 +9,48 @@ export type RefLayout = 'left' | 'top' | 'right';
 export const LAYOUTS: RefLayout[] = ['left', 'top', 'right'];
 
 export type Calibration = {
-  /** Distance of the head-locked overlay plane, metres. */
+  /** Reflection distance, metres: where the overlay plane sits. Measured live unless autoDistance is off. */
   distance: number;
-  /** Horizontal field of view the overlay covers, degrees. */
+  /** Measure `distance` from the tracked body's size every frame (camera sees a mirror). */
+  autoDistance: boolean;
+  /** Horizontal field of view the overlay covers, degrees; vertical follows the image aspect. */
   hfov: number;
+  /** How far the headset camera looks down from where the head faces, degrees. */
+  pitch: number;
+  /** Camera position from the centre of the eyes, metres (x right, y up, z back). */
   offsetX: number;
   offsetY: number;
+  offsetZ: number;
+  /** Camera capture to browser delay, ms: how far back to look up the head pose of a frame. */
+  latencyMs: number;
 };
 
-const CALIBRATION_KEY = 'mirror-coach:calibration:v1';
+const CALIBRATION_KEY = 'mirror-coach:calibration:v3';
 /**
- * Defaults for a Quest 3 user standing ~1.7 m from a mirror (T2):
- * - distance 3.4 m: the reflection appears at twice the mirror distance, so
- *   the skeleton sits at the reflection's depth and fuses in stereo.
- *   Why 1.7 m: the camera sees ~56° vertically, so at 1.4 m the reflected
- *   feet (1.6 m below the eyes, 2.8 m away, ~30° down) fall out of frame.
- *   Alignment itself doesn't depend on this; only stereo depth does.
- * - hfov 71°: Meta's Spatial SDK samples default the passthrough camera to 72°
- *   horizontal (1280x960, 4:3, undistorted, centred principal point); the
- *   camera sits ~7 cm in front of the eyes, which narrows it slightly.
- * - offsetY -0.03 m: the RGB cameras sit below the eyes and look slightly
- *   down; both push the image down. The tilt is unpublished, so fine-tune
- *   with the left stick.
- * - offsetX 0: the cameras are ~3.5 cm left/right of centre, but which one
- *   "camera 1" is isn't published; a wrong sign would double the error. Check
- *   by covering the left front camera with Y (feed) on, then nudge.
- * None of this is measured on a headset yet. `?recalibrate=1` ignores a
- * saved calibration.
+ * Quest 3 passthrough camera, measured from the headset's own Camera2
+ * calibration (`adb shell dumpsys media.camera`, 2:50pm):
+ * - fx = fy = 869 px on a 1280x1280 sensor, principal point centred. The
+ *   browser stream is a centre crop of it (cropRegion 0,160,1280,960), so it
+ *   covers 72.7° x 57.8° (2·atan(640/869) x 2·atan(480/869)).
+ * - lens pose rotation 168.9° about x against the 180° camera flip: the
+ *   camera looks 11° below where the head faces.
+ * - the browser opens the left camera, (-3.2, -1.7, -6.2) cm from the centre
+ *   of the eyes.
+ * - distance: measured live from the body (MirrorSystem.measureDistance);
+ *   3.4 m, a user 1.7 m from the mirror, until the first measurement.
+ * Fine-tune live with `mirrorCoach.agent.do('calibrate', {...})` or the
+ * sticks. `?recalibrate=1` ignores a saved calibration.
  */
-const DEFAULT_CALIBRATION: Calibration = { distance: 3.4, hfov: 71, offsetX: 0, offsetY: -0.03 };
+const DEFAULT_CALIBRATION: Calibration = {
+  distance: 3.4,
+  autoDistance: true,
+  hfov: 72.7,
+  pitch: 11,
+  offsetX: -0.032,
+  offsetY: -0.017,
+  offsetZ: -0.062,
+  latencyMs: 60,
+};
 
 export function loadCalibration(): Calibration {
   try {

@@ -11,6 +11,8 @@ export type NormalizedLandmark = {
 
 export type PoseResults = {
   poseLandmarks?: NormalizedLandmark[];
+  /** Metres, origin between the hips, axes aligned with the camera. */
+  poseWorldLandmarks?: NormalizedLandmark[];
 };
 
 // Virtual landmark index for the synthetic neck (midpoint of shoulders 11 & 12)

@@ -156,11 +156,17 @@ export class OverlayPanel {
     this.feed.visible = v && !!this.feedTexture;
   }
 
-  /** Size/position the plane to cover the camera FOV at `distance` metres. */
-  layout(distance: number, hfovDeg: number, aspect: number, offsetX: number, offsetY: number) {
+  /**
+   * Cover the camera's field of view at `distance` along its optical axis:
+   * the plane hangs from the camera's position and tilts down with it, so
+   * every image point lies on the ray the camera saw it along.
+   */
+  layout(distance: number, hfovDeg: number, aspect: number, pitchDeg: number, offsetX: number, offsetY: number, offsetZ: number) {
     const width = 2 * distance * Math.tan((hfovDeg * Math.PI) / 360);
     const height = width / aspect;
-    this.root.position.set(offsetX, offsetY, -distance);
+    const pitch = (pitchDeg * Math.PI) / 180;
+    this.root.position.set(offsetX, offsetY - distance * Math.sin(pitch), offsetZ - distance * Math.cos(pitch));
+    this.root.rotation.set(-pitch, 0, 0);
     this.panel.mesh.scale.set(width, height, 1);
     this.feed.scale.set((this.mirrored ? -1 : 1) * width, height, 1);
     const px = 1024;

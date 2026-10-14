@@ -33,7 +33,7 @@ Sources (re-check if something seems off; organizers mark some details "to confi
 
 Drive and inspect `/xr` through its agent API, not DOM clicks or internals. It lives at `window.mirrorCoach.agent` (source: `xr/src/agent.ts`):
 
-- `help()` lists the actions: `clips`, `selectClip {id}`, `allowCamera`, `pickCamera {label}`, `sees {sees}`, `enter`, `play`, `pause`, `restart`, `finishRun`, `goAgain`, `layout {layout}`, `recenter`, `feed {on}`, `calibrate {distance,hfov,offsetX,offsetY}`, `exitXR`.
+- `help()` lists the actions: `clips`, `selectClip {id}`, `allowCamera`, `pickCamera {label}`, `sees {sees}`, `enter`, `play`, `pause`, `restart`, `finishRun`, `goAgain`, `layout {layout}`, `recenter`, `feed {on}`, `calibrate {distance,autoDistance,hfov,pitch,offsetX,offsetY,offsetZ,latencyMs}`, `exitXR`.
 - `status()` returns one JSON snapshot: setup step, camera, XR state, tracking fps, scores, coach line, calibration, report.
 - `log(n)` returns the event timeline: setup steps, engine status, XR visibility, runs, agent calls, errors.
 - `do(name, args)` runs an action.

@@ -23,8 +23,10 @@
 import {
   createSystem,
   DistanceGrabbable,
+  Group,
   InputComponent,
   MovementMode,
+  Quaternion,
   RayInteractable,
   Vector3,
   VisibilityState,
@@ -35,10 +37,14 @@ import { fetchReport, ReportPanel, summarize } from './report.js';
 import { registerAction } from './agent.js';
 import { beaconInfo } from './beacon.js';
 import { logEvent } from './events.js';
-import { LAYOUTS, saveCalibration, session, type RefLayout } from './session.js';
+import { LAYOUTS, saveCalibration, session, type Calibration, type RefLayout } from './session.js';
 
 const HINT = 'A play · B restart · X layout · Y camera · sticks calibrate';
 const DEADZONE = 0.25;
+/** ~1 s of head poses at 90 Hz, to find the pose a camera frame was captured at. */
+const POSE_HISTORY = 96;
+const TORSO = [11, 12, 23, 24];
+const CALIBRATION_NUMBERS = ['distance', 'hfov', 'pitch', 'offsetX', 'offsetY', 'offsetZ', 'latencyMs'] as const;
 
 export class MirrorSystem extends createSystem({}) {
   private overlay!: OverlayPanel;
@@ -63,6 +69,12 @@ export class MirrorSystem extends createSystem({}) {
   private right!: Vector3;
   private anchor!: Vector3;
   private tmp!: Vector3;
+  /** World-space anchor for the overlay: the head pose its camera frame was captured at. */
+  private latch!: Group;
+  private poseT!: Float64Array;
+  private posePos!: Vector3[];
+  private poseQuat!: Quaternion[];
+  private poseCount = 0;
 
   init(): void {
     this.headPos = new Vector3();
@@ -70,6 +82,10 @@ export class MirrorSystem extends createSystem({}) {
     this.right = new Vector3();
     this.anchor = new Vector3();
     this.tmp = new Vector3();
+    this.latch = new Group();
+    this.poseT = new Float64Array(POSE_HISTORY);
+    this.posePos = Array.from({ length: POSE_HISTORY }, () => new Vector3());
+    this.poseQuat = Array.from({ length: POSE_HISTORY }, () => new Quaternion());
     this.overlay = new OverlayPanel();
     this.hud = new HudPanel();
     this.report = new ReportPanel();
@@ -93,12 +109,14 @@ export class MirrorSystem extends createSystem({}) {
     });
     registerAction(
       'calibrate',
-      'Overlay calibration, saved on this device: any of {distance (m), hfov (deg), offsetX (m), offsetY (m)}',
-      (a: Partial<Record<'distance' | 'hfov' | 'offsetX' | 'offsetY', number>>) => {
+      'Overlay calibration, saved on this device: any of {distance (m; turns autoDistance off), autoDistance, hfov, pitch (deg, camera looking down), offsetX, offsetY, offsetZ (m, camera from the eyes), latencyMs}',
+      (a: Partial<Calibration>) => {
         const c = session.calibration;
-        for (const k of ['distance', 'hfov', 'offsetX', 'offsetY'] as const) {
+        if (typeof a?.distance === 'number' && a.autoDistance === undefined) c.autoDistance = false;
+        for (const k of CALIBRATION_NUMBERS) {
           if (typeof a?.[k] === 'number' && Number.isFinite(a[k])) c[k] = a[k]!;
         }
+        if (typeof a?.autoDistance === 'boolean') c.autoDistance = a.autoDistance;
         this.applyCalibration();
         saveCalibration(c);
         return { ...c };
@@ -131,9 +149,10 @@ export class MirrorSystem extends createSystem({}) {
 
   private build() {
     const ref = session.reference!;
-    // Head-locked overlay: parented to the head so camera-image coordinates
-    // stay registered with the passthrough view (exact view alignment).
-    this.world.createTransformEntity(this.overlay.root, this.world.playerHeadEntity);
+    // The overlay hangs off a world-space anchor that follows the head, lagged
+    // to the head pose each camera frame was captured at (see placeLatch).
+    this.world.createTransformEntity(this.latch);
+    this.latch.add(this.overlay.root);
     this.bindCamera();
 
     this.boundRef = ref;
@@ -156,7 +175,72 @@ export class MirrorSystem extends createSystem({}) {
     const c = session.calibration;
     const cam = session.camera;
     const aspect = cam && cam.videoWidth ? cam.videoWidth / cam.videoHeight : 4 / 3;
-    this.overlay.layout(c.distance, c.hfov, aspect, c.offsetX, c.offsetY);
+    // Tilt and camera position apply to the headset camera (see session.ts).
+    // A webcam faces the user and its feed is drawn on the same plane, so any
+    // placement lines up.
+    const mirror = session.engine.cameraSeesMirror;
+    this.overlay.layout(c.distance, c.hfov, aspect, mirror ? c.pitch : 0, c.offsetX, c.offsetY, mirror ? c.offsetZ : 0);
+  }
+
+  /**
+   * Put the overlay where the head was when the tracked frame was captured:
+   * the skeleton lands on the body the camera saw, however far the head has
+   * turned or tilted in the ~100 ms of camera and model latency since.
+   * Without a tracked body it follows the live head.
+   */
+  private placeLatch(now: number) {
+    const head = this.player.head;
+    const i = this.poseCount++ % POSE_HISTORY;
+    this.poseT[i] = now;
+    head.getWorldPosition(this.posePos[i]);
+    head.getWorldQuaternion(this.poseQuat[i]);
+    const s = session.engine.state;
+    let pick = i;
+    if (s.live && s.liveAt > 0) {
+      const t = s.liveAt - session.calibration.latencyMs;
+      // Newest pose at or before the capture time (the oldest kept if older still).
+      const n = Math.min(this.poseCount, POSE_HISTORY);
+      for (let k = 0; k < n; k++) {
+        pick = (i - k + POSE_HISTORY) % POSE_HISTORY;
+        if (this.poseT[pick] <= t) break;
+      }
+    }
+    this.latch.position.copy(this.posePos[pick]);
+    this.latch.quaternion.copy(this.poseQuat[pick]);
+  }
+
+  /**
+   * The reflection's distance from the body's size: MediaPipe's world
+   * landmarks give the torso in metres, the image gives it in view angle
+   * (tangent units), and distance = metres / tangent. The overlay plane then
+   * sits at the reflection's depth, so it fuses in stereo and the camera's
+   * offset from the eyes is corrected for wherever the user stands.
+   */
+  private measureDistance() {
+    const c = session.calibration;
+    const s = session.engine.state;
+    if (!c.autoDistance || !session.engine.cameraSeesMirror || !s.live || !s.liveWorld) return;
+    const cam = session.camera;
+    const tx = 2 * Math.tan((c.hfov * Math.PI) / 360);
+    const ty = tx / (cam && cam.videoWidth ? cam.videoWidth / cam.videoHeight : 4 / 3);
+    let ix = 0, iy = 0, wx = 0, wy = 0;
+    for (const k of TORSO) {
+      const p = s.live[k], w = s.liveWorld[k];
+      if (!p || !w || (p.visibility ?? 1) < 0.6) return;
+      ix += p.x * tx; iy += p.y * ty; wx += w.x; wy += w.y;
+    }
+    ix /= TORSO.length; iy /= TORSO.length; wx /= TORSO.length; wy /= TORSO.length;
+    let si = 0, sw = 0;
+    for (const k of TORSO) {
+      const p = s.live[k], w = s.liveWorld[k];
+      si += (p.x * tx - ix) ** 2 + (p.y * ty - iy) ** 2;
+      sw += (w.x - wx) ** 2 + (w.y - wy) ** 2;
+    }
+    const d = Math.sqrt(sw / Math.max(si, 1e-9));
+    if (!(d > 1 && d < 10)) return;
+    // Torso size jitters a few percent per frame; settle over ~0.5 s.
+    c.distance += 0.15 * (d - c.distance);
+    this.applyCalibration();
   }
 
   /** Place the reference video + HUD around the mirror, relative to the head. */
@@ -352,7 +436,9 @@ export class MirrorSystem extends createSystem({}) {
     if (engine.version !== this.lastVersion) {
       this.lastVersion = engine.version;
       this.overlay.draw(engine.state);
+      this.measureDistance();
     }
+    this.placeLatch(now);
     if (now - this.lastHudDraw > 250) {
       this.lastHudDraw = now;
       const ref = session.reference!;
