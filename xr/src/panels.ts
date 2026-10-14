@@ -94,12 +94,14 @@ const visible = (p: NormalizedLandmark | undefined) => !!p && (p.visibility ?? 0
  * three's VideoTexture only refreshes from requestVideoFrameCallback, which
  * runs in the window's rendering step. That step (like window rAF) can stop
  * during an immersive session on Quest, freezing the picture while audio
- * plays on. Called from the XR frame loop, this re-uploads at most ~30 Hz.
+ * plays on. Called from the XR frame loop, this re-uploads at 30–40 Hz.
  */
 function refreshVideoTexture(texture: VideoTexture | null, nowMs: number, last: { t: number }) {
   const video = texture?.image as HTMLVideoElement | undefined;
   if (!texture || !video || video.readyState < 2) return;
-  if (nowMs - last.t < (video.paused ? 250 : 33)) return;
+  // 24 ms lands between display frames: 36 Hz at 72 Hz, 30 Hz at 90 Hz, 40 Hz
+  // at 120 Hz. A 33 ms gate fell to every 3rd frame at 72 Hz (24 Hz, judder).
+  if (nowMs - last.t < (video.paused ? 250 : 24)) return;
   last.t = nowMs;
   texture.needsUpdate = true;
 }
@@ -274,17 +276,42 @@ export class ReferencePanel {
   readonly root = new Group();
   private readonly screen: Mesh;
   private readonly backing: Mesh;
-  private readonly texture: VideoTexture;
+  private texture: VideoTexture;
+  private video: HTMLVideoElement;
 
-  constructor(video: HTMLVideoElement, widthM = 1.1) {
-    this.texture = new VideoTexture(video);
-    this.texture.colorSpace = SRGBColorSpace;
+  constructor(video: HTMLVideoElement, private readonly widthM = 1.1) {
+    this.video = video;
+    this.texture = this.makeTexture(video);
     this.screen = new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ map: this.texture, side: DoubleSide }));
     this.backing = new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ color: 0x05060a, side: DoubleSide }));
     this.backing.position.z = -0.005;
     this.root.add(this.backing, this.screen);
-    this.resize(video, widthM);
-    video.addEventListener('loadedmetadata', () => this.resize(video, widthM));
+    this.watch(video);
+  }
+
+  private makeTexture(video: HTMLVideoElement) {
+    const texture = new VideoTexture(video);
+    texture.colorSpace = SRGBColorSpace;
+    return texture;
+  }
+
+  private watch(video: HTMLVideoElement) {
+    this.resize(video, this.widthM);
+    video.addEventListener('loadedmetadata', () => {
+      if (video === this.video) this.resize(video, this.widthM);
+    });
+  }
+
+  /** Show a different reference video (picked on the setup screen between sessions). */
+  setVideo(video: HTMLVideoElement) {
+    if (video === this.video) return;
+    this.texture.dispose();
+    this.video = video;
+    this.texture = this.makeTexture(video);
+    const mat = this.screen.material as MeshBasicMaterial;
+    mat.map = this.texture;
+    mat.needsUpdate = true;
+    this.watch(video);
   }
 
   private readonly refresh = { t: 0 };

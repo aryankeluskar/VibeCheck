@@ -19,10 +19,12 @@ export type Calibration = {
 
 const CALIBRATION_KEY = 'mirror-coach:calibration:v1';
 /**
- * Defaults for a Quest 3 user standing ~1.4 m from a mirror (T2):
- * - distance 2.8 m: the reflection appears at twice the mirror distance, so
- *   the skeleton sits at the reflection's depth and fuses in stereo (the
- *   panels in MirrorSystem assume the same 1.4 m mirror).
+ * Defaults for a Quest 3 user standing ~1.7 m from a mirror (T2):
+ * - distance 3.4 m: the reflection appears at twice the mirror distance, so
+ *   the skeleton sits at the reflection's depth and fuses in stereo.
+ *   Why 1.7 m: the camera sees ~56° vertically, so at 1.4 m the reflected
+ *   feet (1.6 m below the eyes, 2.8 m away, ~30° down) fall out of frame.
+ *   Alignment itself doesn't depend on this; only stereo depth does.
  * - hfov 71°: Meta's Spatial SDK samples default the passthrough camera to 72°
  *   horizontal (1280x960, 4:3, undistorted, centred principal point); the
  *   camera sits ~7 cm in front of the eyes, which narrows it slightly.
@@ -35,7 +37,7 @@ const CALIBRATION_KEY = 'mirror-coach:calibration:v1';
  * None of this is measured on a headset yet. `?recalibrate=1` ignores a
  * saved calibration.
  */
-const DEFAULT_CALIBRATION: Calibration = { distance: 2.8, hfov: 71, offsetX: 0, offsetY: -0.03 };
+const DEFAULT_CALIBRATION: Calibration = { distance: 3.4, hfov: 71, offsetX: 0, offsetY: -0.03 };
 
 export function loadCalibration(): Calibration {
   try {

@@ -102,7 +102,7 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 **Test on a Quest 3:**
 1. Open `https://vercel-ff-five.vercel.app/xr` in Quest Browser.
 2. Pick the video, then tap **Allow camera**. Choose a camera labelled *(passthrough)*, set *Camera sees my reflection*, and pick a reference position.
-3. Stand about 1.2–1.5 m from a mirror (full-length is best) so the reflection shows your whole body.
+3. Stand about 1.7 m from a mirror (full-length is best). Closer than about 1.5 m, the camera's ~56° vertical view cuts off your reflected feet.
 4. Tap **Enter Mirror (MR)**.
 5. If the skeleton isn't on your reflection, press **Y** to show the camera feed and use the sticks to align it. Calibration is saved per device; open `/xr?recalibrate=1` to start from the defaults again.
 
@@ -153,10 +153,10 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 **P0, must happen for eligibility and the demo**
 - [ ] **T1 Real-headset smoke test** (Ali): open `/xr` on a Quest 3 from the production URL. Check that a *facing back* camera shows up, permission works, XR launches, and tracking fps is above 8 (shown on the HUD). Report what breaks.
   - Code side done: Enter now requests the XR session first, inside the click (the browser refuses it a few seconds after a tap, and the old code waited for the pose model). A refused session or leaving XR brings the setup screen back. The pose model (~12 MB) now loads on the setup screen. Video panels refresh from the XR frame loop, since the browser's own video callbacks can stop in XR.
-  - On the headset, while in XR, read `curl -s https://vercel-ff-five.vercel.app/api/debug | jq` and check: `visible` is `"visible"` (if `"hidden"`, the camera and video freeze and we need a different approach), `xr` is `"visible"`, `camera.w`×`camera.h` (expect 1280×960), `engine.fps` > 8, and `ref.t` advancing.
+  - On the headset, open `/xr?beacon=1` (the debug beacon is now opt-in). While in XR, read `curl -s https://<host>/api/debug | jq` and check: `visible` is `"visible"` (if `"hidden"`, the camera and video freeze and we need a different approach), `xr` is `"visible"`, `camera.w`×`camera.h` (expect 1280×960), `engine.fps` > 8, and `ref.t` advancing.
 - [ ] **T2 Mirror calibration** (Ali): set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
-  - Defaults now: distance 2.8 m (reflection depth for a user 1.4 m from the mirror), hfov 71°, offsetY −0.03 m, offsetX 0. Sources and reasoning are in the comment above `DEFAULT_CALIBRATION`. Not measured on a headset.
-  - On the headset: stand 1.4 m from the mirror, press **Y** to show the feed, align with the sticks, then copy `calibration` from `/api/debug` into `DEFAULT_CALIBRATION`. To learn which lens "camera 1" is, cover the left front camera with a finger: if the feed goes dark it's the left one and offsetX should be about −0.035, otherwise about +0.035. Open `/xr?recalibrate=1` to drop a saved calibration.
+  - Defaults now: distance 3.4 m (reflection depth for a user 1.7 m from the mirror), hfov 71°, offsetY −0.03 m, offsetX 0. Sources and reasoning are in the comment above `DEFAULT_CALIBRATION`. Not measured on a headset.
+  - On the headset: stand 1.7 m from the mirror, press **Y** to show the feed, align with the sticks, then copy `calibration` from `/api/debug` into `DEFAULT_CALIBRATION`. To learn which lens "camera 1" is, cover the left front camera with a finger: if the feed goes dark it's the left one and offsetX should be about −0.035, otherwise about +0.035. Open `/xr?recalibrate=1` to drop a saved calibration.
 - [ ] **T3 Demo reference clips** (Ali): pick 1–2 short (30–60 s), full-body, front-facing clips with clear moves. Add them through the 2D app and open each once on the laptop so its pose timeline is cached before the headset loads it. Prefer clips we recorded ourselves (no rights issues).
   - Check the cache: `curl -sI https://vercel-ff-five.vercel.app/api/poses/<id> | head -1` returns 307 when cached and 404 when not. If it's 404 after opening the clip in the 2D app, that browser already had a local copy and skipped the upload; open it in a private window. Without the cache the headset analyzes the clip itself, which is slow.
 - [ ] **T4 Audio check in headset** (Ali): reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
@@ -203,7 +203,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 - **Reference clip:** a teammate films a 30–45 s front-facing routine on a phone (no rights issues, and it matches our skit). Upload it in the 2D app, then open it once on the laptop to cache the poses.
 - **Recording:** with the headset in developer mode (our Meta dev org), Meta Quest Developer Hub can cast and record the headset view on a laptop. Otherwise try the Quest's built-in recorder on an MR session first; if passthrough comes out black, film the cast window plus a phone shot of the person.
 - **Audio:** make sure the coach voice is audible in the recording and through the AV cast. Ask the AV team at 4:50 whether casting carries Quest audio; otherwise hold a mic near the headset speaker.
-- **Judges without a mirror:** Round 1 judges try it on a Quest themselves. Put "needs a mirror, stand 1.5 m away" at the top of the setup instructions, plus the video link as the fallback.
+- **Judges without a mirror:** Round 1 judges try it on a Quest themselves. Put "needs a mirror, stand 1.7 m away" at the top of the setup instructions, plus the video link as the fallback.
 
 ### Timeline (now → 4:00)
 | Time | What |
@@ -218,7 +218,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 
 **Name:** Mirror Coach
 **Description:** Mirror Coach turns any dance or workout video into a live, immersive lesson on Meta Quest 3. Stand in front of a real mirror in mixed reality. The headset's passthrough camera tracks your reflection with MediaPipe Pose and overlays your skeleton with every limb labelled and colored by how well it matches the reference. A ghost of the instructor's pose is fitted onto your body, and the reference video floats beside the mirror. A voice coach (Meta Llama 4 Scout through Vercel AI Gateway, with TTS) gives one specific correction every few seconds. Built with Meta's Immersive Web SDK (immersive-ar, passthrough camera, grabbable panels), Next.js on Vercel, Vercel Blob, Vercel Sandbox and AI Gateway with model fallbacks. Runs in Quest Browser from a live HTTPS URL. There's also a 2D web version for laptops.
-**Demo setup:** Needs a mirror (full-length is best). Open `/xr` on a Quest 3, allow camera access, pick the "(passthrough)" camera, stand facing the mirror about 1.5 m away, then Enter Mirror (MR). No login. Demo video: <link>. Without a mirror, choose "Camera faces me" in the 2D view; on desktop the Quest emulator loads automatically.
+**Demo setup:** Needs a mirror (full-length is best). Open `/xr` on a Quest 3, allow camera access, pick the "(passthrough)" camera, stand facing the mirror about 1.7 m away, then Enter Mirror (MR). No login. Demo video: <link>. Without a mirror, choose "Camera faces me" in the 2D view; on desktop the Quest emulator loads automatically.
 
 ## Conventions for humans and agents
 
@@ -226,7 +226,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 - Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
 - Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
 - Debug the headset from the console: `mirrorCoach.engine.state` (score, limbs, fps, coach line) and `mirrorCoach.calibration`.
-- **Remote headset debugging (no adb needed):** `/xr` posts its state every 2 s. Read it with `curl -s https://vercel-ff-five.vercel.app/api/debug | jq` (camera list and resolution, tracking fps, score, limbs, coach line, calibration, last errors). Add `?beacon=0` to turn it off.
+- **Remote headset debugging (no adb needed):** open `/xr?beacon=1` and it posts its state every 5 s. Read it with `curl -s https://vercel-ff-five.vercel.app/api/debug | jq` (camera list and resolution, tracking fps, score, limbs, coach line, calibration, last errors). It's opt-in because every post is a Vercel Blob write, and the video library lives in the same Blob store.
 - IWSDK skills for agents: `xr/.claude/skills` (Claude Code), `xr/.agents` (Codex), `xr/.cursor` (Cursor), plus the Meta-provided `.claude/skills/iwsdk-dev`.
 
 ## Known gotchas

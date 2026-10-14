@@ -13,8 +13,19 @@ let currentAudio: HTMLAudioElement | null = null;
 const DUCK_LEVEL = 0.25;
 const FADE_MS = 180;
 let duckTarget: HTMLMediaElement | null = null;
+/** Volume to return to after the coach finishes; null when not ducked. */
 let duckRestore: number | null = null;
 let fadeTimer: ReturnType<typeof setInterval> | null = null;
+/** Where the in-progress fade is heading. */
+let fadeGoal: number | null = null;
+
+/** Stop any fade and jump the element to where it was heading. */
+function settleFade(el: HTMLMediaElement | null): void {
+  if (fadeTimer) clearInterval(fadeTimer);
+  if (el && fadeGoal !== null) el.volume = fadeGoal;
+  fadeTimer = null;
+  fadeGoal = null;
+}
 
 function fadeTo(el: HTMLMediaElement, to: number): void {
   if (fadeTimer) clearInterval(fadeTimer);
@@ -22,19 +33,23 @@ function fadeTo(el: HTMLMediaElement, to: number): void {
   const from = el.volume;
   const steps = 6;
   let i = 0;
+  fadeGoal = to;
   fadeTimer = setInterval(() => {
     i++;
     el.volume = Math.min(1, Math.max(0, from + ((to - from) * i) / steps));
-    if (i >= steps && fadeTimer) {
-      clearInterval(fadeTimer);
+    if (i >= steps) {
+      if (fadeTimer) clearInterval(fadeTimer);
       fadeTimer = null;
+      fadeGoal = null;
     }
   }, FADE_MS / steps);
 }
 
 function duck(): void {
   if (!duckTarget || duckRestore !== null) return;
-  duckRestore = duckTarget.volume;
+  // If the previous fade back up hasn't finished, restore to where it was
+  // heading, not to the half-way volume (or the level ratchets down).
+  duckRestore = fadeGoal ?? duckTarget.volume;
   fadeTo(duckTarget, Math.min(duckRestore, DUCK_LEVEL));
 }
 
@@ -50,7 +65,10 @@ export function setDuckTarget(el: HTMLMediaElement | null): void {
   if (duckTarget && duckRestore !== null) {
     if (fadeTimer) clearInterval(fadeTimer);
     fadeTimer = null;
+    fadeGoal = null;
     duckTarget.volume = duckRestore;
+  } else {
+    settleFade(duckTarget);
   }
   duckRestore = null;
   duckTarget = el;

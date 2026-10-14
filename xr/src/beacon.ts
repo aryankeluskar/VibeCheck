@@ -1,7 +1,9 @@
 /**
- * Debug beacon: posts a snapshot of the app state to /api/debug every 2 s so
+ * Debug beacon: posts a snapshot of the app state to /api/debug every 5 s so
  * we can see what the headset sees without adb. Read it with
- * `curl https://<host>/api/debug`. Disable with ?beacon=0.
+ * `curl https://<host>/api/debug`. Opt-in with /xr?beacon=1: every post is a
+ * Vercel Blob write, so leaving it on in every tab (judges included) could
+ * use up the Blob allowance the video library depends on.
  */
 
 import { session } from './session.js';
@@ -19,7 +21,7 @@ export const beaconInfo = {
 };
 
 export function startBeacon() {
-  if (new URLSearchParams(location.search).get('beacon') === '0') return;
+  if (new URLSearchParams(location.search).get('beacon') !== '1') return;
 
   window.addEventListener('error', (e) => pushError(`error: ${e.message} @${e.filename}:${e.lineno}`));
   window.addEventListener('unhandledrejection', (e) => pushError(`rejection: ${String(e.reason)}`));
@@ -81,6 +83,8 @@ export function startBeacon() {
       keepalive: true,
     }).catch(() => {});
   };
-  setInterval(send, 2000);
+  setInterval(() => {
+    if (document.visibilityState !== 'hidden') send();
+  }, 5000);
   send();
 }

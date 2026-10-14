@@ -6,7 +6,7 @@
 import { CameraFacing, CameraUtils, VisibilityState, type World } from '@iwsdk/core';
 import { beaconInfo } from './beacon.js';
 import { session, type RefLayout } from './session.js';
-import { unlockSpeech } from '../../app/shared/speech';
+import { cancelSpeech, unlockSpeech } from '../../app/shared/speech';
 
 type LibraryVideo = { id: string; title: string; mode: 'dance' | 'gym' };
 
@@ -78,7 +78,12 @@ export function setupScreen(world: World) {
       const video = document.createElement('video');
       video.playsInline = true;
       video.preload = 'auto';
+      // Loop: with hands only (no controllers) there is no way to restart a
+      // finished clip, and a judge may put the headset on mid-routine.
+      video.loop = true;
       video.src = src;
+      const previous = session.reference;
+      if (previous?.src.startsWith('blob:')) URL.revokeObjectURL(previous.src);
       session.reference = video;
 
       say('Loading reference poses…');
@@ -139,8 +144,19 @@ export function setupScreen(world: World) {
       });
     } catch (err) {
       say(`Camera failed to start: ${err instanceof Error ? err.message : err}`);
+      allowBtn.disabled = false;
+      allowBtn.textContent = 'Allow camera';
       return;
     }
+    // The headset sleeping between users can end the stream; ask again rather
+    // than tracking a frozen frame.
+    stream.getVideoTracks()[0]?.addEventListener('ended', () => {
+      cameraReady = false;
+      allowBtn.disabled = false;
+      allowBtn.textContent = 'Allow camera';
+      say('Camera stopped. Tap Allow camera again.');
+      refresh();
+    });
     const video = document.createElement('video');
     video.playsInline = true;
     video.muted = true;
@@ -183,38 +199,58 @@ export function setupScreen(world: World) {
   });
   cameraSelect.addEventListener('change', () => startCamera(cameraSelect.value));
 
+  // Each Enter tap is one attempt. Aborting (refused session, leaving XR)
+  // bumps the counter so a pose model that finishes loading afterwards can't
+  // start the music or coach behind the setup screen, and stops inference.
+  let attempt = 0;
+  const abortAttempt = (message: string) => {
+    attempt++;
+    session.started = false;
+    session.reference?.pause();
+    cancelSpeech();
+    $('setup').classList.remove('hidden');
+    say(message);
+    refresh();
+  };
+
   // Leaving XR (Meta button, headset off) brings the setup screen back so the
   // next person can tap Enter again without reloading.
   let wasImmersive = false;
+  let pausedForHidden = false;
   world.visibilityState.subscribe((state) => {
+    // Headset taken off / system menu: pause, and resume when it's back.
+    const ref = session.reference;
+    if (state === VisibilityState.Hidden && ref && !ref.paused) {
+      ref.pause();
+      pausedForHidden = true;
+    } else if (state === VisibilityState.Visible && pausedForHidden) {
+      pausedForHidden = false;
+      ref?.play().catch(() => {});
+    }
     if (state !== VisibilityState.NonImmersive) {
       wasImmersive = true;
       return;
     }
+    pausedForHidden = false;
     if (!wasImmersive) return;
     wasImmersive = false;
-    session.reference?.pause();
-    $('setup').classList.remove('hidden');
-    say('Session ended. Tap Enter to go back in.');
-    refresh();
+    abortAttempt('Session ended. Tap Enter to go back in.');
   });
 
   /** Reports a session request the headset refused (permission denied, unsupported feature). */
-  const watchSession = () => {
+  const watchSession = (mine: number) => {
     const startedAt = performance.now();
     const timer = setInterval(() => {
-      if (world.session) {
+      if (world.session || mine !== attempt) {
         clearInterval(timer);
         return;
       }
-      const settled = !world.sessionRequestPending && performance.now() - startedAt > 500;
-      if (!settled && performance.now() - startedAt < 30_000) return;
+      // Keep waiting while the request is pending: the headset may be showing
+      // a permission prompt, and accepting it late must still work.
+      if (world.sessionRequestPending || performance.now() - startedAt < 500) return;
       clearInterval(timer);
-      session.reference?.pause();
-      $('setup').classList.remove('hidden');
-      say('Could not start mixed reality. Accept the headset permission prompt, then tap Enter again.');
       console.error('[mirror-coach] XR session did not start');
-      refresh();
+      abortAttempt('Could not start mixed reality. Accept the headset permission prompt, then tap Enter again.');
     }, 250);
   };
 
@@ -222,6 +258,7 @@ export function setupScreen(world: World) {
     const reference = session.reference;
     const camera = session.camera;
     if (!reference || !camera) return;
+    const mine = ++attempt;
     enterBtn.disabled = true;
     say('Starting…');
     // WebXR only grants a session inside a live user gesture, and Chromium
@@ -229,7 +266,7 @@ export function setupScreen(world: World) {
     // click is still fresh; the pose model loads afterwards (the HUD shows it).
     if (world.xrEnabled) {
       world.launchXR();
-      watchSession();
+      watchSession(mine);
     }
     // Unlock the coach voice inside the click; later lines play outside any gesture.
     unlockSpeech();
@@ -241,12 +278,17 @@ export function setupScreen(world: World) {
       try {
         await session.engine.start(camera, reference, { lite: params.get('full') !== '1' });
       } catch (err) {
-        session.engine.setStatus('Pose model failed to load. Check Wi-Fi and re-enter.');
+        if (mine === attempt) session.engine.setStatus('Pose model failed to load. Check Wi-Fi and re-enter.');
         console.error('[mirror-coach] pose model failed', err);
         return;
       }
       // Let the unlock play/pause settle first, or its pause() would stop the real start.
       await unlock;
+      // Start the routine once the user can see it, not during the XR transition.
+      for (let i = 0; i < 300 && world.xrEnabled && !world.session && mine === attempt; i++) {
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      if (mine !== attempt) return; // abandoned (refused session or left XR)
       reference.currentTime = 0;
       reference.play().catch(() => {});
     })();

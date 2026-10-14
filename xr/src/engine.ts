@@ -139,6 +139,7 @@ export class CoachEngine {
   private camera: HTMLVideoElement | null = null;
   private reference: HTMLVideoElement | null = null;
   private resultTimes: number[] = [];
+  private lastLiveAt = 0;
   private smoothed = 0;
 
   setStatus(status: string) {
@@ -214,17 +215,30 @@ export class CoachEngine {
   /** Drive from the XR frame loop (window rAF does not run during immersive sessions). */
   tick(nowMs: number) {
     const cam = this.camera;
+    // A send that never settles (lost GL context, stalled model) must not stop tracking for good.
+    if (this.inflight && nowMs - this.lastSend > 1500) this.inflight = false;
     if (!this.pose || !cam || this.inflight || cam.readyState < 2) return;
     if (nowMs - this.lastSend < this.sendIntervalMs) return;
     this.lastSend = nowMs;
     this.inflight = true;
+    // Run inference just after this XR frame is submitted, not inside it, so
+    // MediaPipe's main-thread work doesn't eat the frame's render budget.
+    setTimeout(this.sendFrame, 0);
+  }
+
+  private readonly sendFrame = () => {
+    const cam = this.camera;
+    if (!this.pose || !cam) {
+      this.inflight = false;
+      return;
+    }
     this.pose
       .send({ image: cam })
       .catch(() => {})
       .finally(() => {
         this.inflight = false;
       });
-  }
+  };
 
   private onResults(results: PoseResults) {
     const now = performance.now();
@@ -234,6 +248,9 @@ export class CoachEngine {
 
     const raw = results.poseLandmarks ?? null;
     const live = raw && raw.length >= 33 ? (this.cameraSeesMirror ? raw : mirrorLandmarks(raw)) : null;
+    // Bridge single missed detections so the skeleton doesn't flicker off.
+    if (!live && this.state.live && now - this.lastLiveAt < 300) return;
+    if (live) this.lastLiveAt = now;
     this.state.live = live;
 
     const cam = this.camera;
@@ -273,7 +290,8 @@ export class CoachEngine {
       if (!result) return;
       this.state.coachLine = result.message;
       this.version++;
-      if (this.voice && result.audio) speak(result.audio);
+      // Drop a line that arrives after the clip was paused or the session ended.
+      if (this.voice && result.audio && this.reference && !this.reference.paused) speak(result.audio);
     });
   }
 }

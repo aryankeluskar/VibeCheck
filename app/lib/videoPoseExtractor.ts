@@ -102,7 +102,11 @@ export async function extractPoses(
     // Run pose detection and wait for result
     const landmarks = await new Promise<NormalizedLandmark[]>((resolve) => {
       resolveFrame = resolve;
-      pose.send({ image: canvas });
+      // A failed send (e.g. the model download dropped) must not hang the loop.
+      pose.send({ image: canvas }).catch(() => {
+        resolveFrame = null;
+        resolve([]);
+      });
     });
 
     timeline.push({ time: t, landmarks });
@@ -268,7 +272,11 @@ export async function extractStripPoses(
 
     const landmarks = await new Promise<NormalizedLandmark[]>((resolve) => {
       resolveFrame = resolve;
-      pose.send({ image: canvas });
+      // A failed send (e.g. the model download dropped) must not hang the loop.
+      pose.send({ image: canvas }).catch(() => {
+        resolveFrame = null;
+        resolve([]);
+      });
     });
 
     denseTL.push({ time: t, landmarks, thumbnail });
