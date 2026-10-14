@@ -42,6 +42,10 @@ export class MirrorSystem extends createSystem({}) {
   private refEntity: Entity | null = null;
   private hudEntity: Entity | null = null;
   private built = false;
+  /** What the panels currently show; the setup screen can swap these between sessions. */
+  private boundRef: HTMLVideoElement | null = null;
+  private boundCam: HTMLVideoElement | null = null;
+  private boundSeesMirror = true;
   private lastVersion = -1;
   private lastHudDraw = 0;
   private relayoutIn = -1;
@@ -70,18 +74,26 @@ export class MirrorSystem extends createSystem({}) {
     );
   }
 
-  private build() {
-    const ref = session.reference!;
-    // Head-locked overlay: parented to the head so camera-image coordinates
-    // stay registered with the passthrough view (exact view alignment).
-    this.world.createTransformEntity(this.overlay.root, this.world.playerHeadEntity);
+  /** Point the overlay feed at the current camera and its facing. */
+  private bindCamera() {
+    this.boundCam = session.camera;
+    this.boundSeesMirror = session.engine.cameraSeesMirror;
     this.overlay.setFeed(session.camera, !session.engine.cameraSeesMirror);
     this.applyCalibration();
     // A camera facing the user (laptop webcam, emulator) has no passthrough
     // behind it, so show the feed; a headset camera looking at a mirror doesn't
     // need it (the real reflection is visible). Y toggles either way.
     this.overlay.feedVisible = !session.engine.cameraSeesMirror;
+  }
 
+  private build() {
+    const ref = session.reference!;
+    // Head-locked overlay: parented to the head so camera-image coordinates
+    // stay registered with the passthrough view (exact view alignment).
+    this.world.createTransformEntity(this.overlay.root, this.world.playerHeadEntity);
+    this.bindCamera();
+
+    this.boundRef = ref;
     this.refPanel = new ReferencePanel(ref);
     this.refEntity = this.world.createTransformEntity(this.refPanel.root);
     this.hudEntity = this.world.createTransformEntity(this.hud.mesh);
@@ -118,7 +130,7 @@ export class MirrorSystem extends createSystem({}) {
     const ref = this.refEntity.object3D!;
     const hud = this.hudEntity.object3D!;
 
-    // Mirror centre ~1.4 m ahead; panels sit just in front of the mirror plane.
+    // Panels ~1.4 m ahead: a little in front of a mirror ~1.7 m away, and readable.
     this.anchor.copy(this.headPos).addScaledVector(this.headDir, 1.4);
     if (session.layout === 'top') {
       ref.position.copy(this.anchor).setY(eyeY + 0.6);
@@ -192,6 +204,14 @@ export class MirrorSystem extends createSystem({}) {
   update(delta: number): void {
     if (!session.started) return;
     if (!this.built) this.build();
+    // Back on the setup screen the user may pick another video or camera.
+    if (session.reference && session.reference !== this.boundRef) {
+      this.boundRef = session.reference;
+      this.refPanel?.setVideo(session.reference);
+    }
+    if (session.camera !== this.boundCam || session.engine.cameraSeesMirror !== this.boundSeesMirror) {
+      this.bindCamera();
+    }
 
     if (this.relayoutIn > 0 && --this.relayoutIn === 0) {
       this.layoutPanels();
@@ -200,6 +220,8 @@ export class MirrorSystem extends createSystem({}) {
 
     const now = performance.now();
     session.engine.tick(now);
+    this.refPanel?.refreshVideo(now);
+    this.overlay.refreshVideo(now);
     this.handleInput(delta);
 
     const engine = session.engine;

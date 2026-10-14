@@ -23,7 +23,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 | Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ 14 curated clips (9 dance, 5 workout), compressed to 540p, pose timelines precomputed, so nothing waits on a download or analysis |
 | YouTube download: local yt-dlp → Blob ✅ · **Vercel Sandbox** yt-dlp ⚠️ blocked by YouTube's bot check unless `YTDLP_PROXY` / `YTDLP_COOKIES` is set |
 | **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach |
-| On a **real Quest 3** in front of a mirror | ❌ **not tested yet**, the #1 TODO |
+| On a **real Quest 3** in front of a mirror | ⚠️ headset-only risks fixed in code (see T1), calibration defaults set (T2), **still not tested on a headset**, the #1 TODO |
 
 ---
 
@@ -45,15 +45,16 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 ```
 
 **In the headset (`xr/`):**
-1. The setup screen (2D, before entering XR) loads the library, downloads the clip into memory (5–10 MB for curated clips), and fetches its pose timeline. Curated clips ship one computed offline. For anything else, the first device to open it runs MediaPipe over it and saves the timeline for everyone.
-2. **Camera permission is requested before entering XR.** Quest Browser exposes the passthrough cameras to `getUserMedia` as "camera 1/2, facing back". IWSDK's `CameraUtils` finds them; the stream is opened directly.
-3. In the immersive session, `MirrorSystem` runs every XR frame (window `requestAnimationFrame` doesn't fire in immersive mode). It sends camera frames to MediaPipe Pose (lite) at about 15 Hz.
-4. `CoachEngine` compares your pose to the reference frame at the video's current time in **reflection space**: you follow the video the way you'd follow a dance-studio mirror. Limb names are swapped back to your real body for labels and voice, because a mirror flips left and right.
-5. Panels:
+1. The setup screen (2D, before entering XR) loads the library, downloads the clip into memory (5–10 MB for curated clips), and fetches its pose timeline. Curated clips ship one computed offline. For anything else, the first device to open it runs MediaPipe over it and saves the timeline for everyone. Then it downloads and compiles the live pose model (MediaPipe, about 12 MB) while you allow the camera, so XR doesn't stall on it.
+2. **Camera permission is requested before entering XR.** Quest Browser exposes the passthrough cameras to `getUserMedia` as "camera 1/2, facing back". IWSDK's `CameraUtils` finds them; the stream is opened directly. If the camera stream ends (the headset slept), the setup screen asks for it again.
+3. **Enter requests the XR session first, inside the tap**, then starts tracking. The clip starts from 0 once the session is up, loops, and pauses while the headset is off. If the headset refuses the session, or you leave XR, the setup screen comes back and everything stops: tap **Enter** again, no reload. A clip or camera picked there is used on re-entry.
+4. In the immersive session, `MirrorSystem` runs every XR frame (window `requestAnimationFrame` doesn't fire in immersive mode). It sends camera frames to MediaPipe Pose (lite) at about 15 Hz, right after each frame is submitted, and re-uploads the video panels from the same loop (the browser's own video-frame callbacks can stop in XR).
+5. `CoachEngine` compares your pose to the reference frame at the video's current time in **reflection space**: you follow the video the way you'd follow a dance-studio mirror. Limb names are swapped back to your real body for labels and voice, because a mirror flips left and right.
+6. Panels:
    - **Overlay:** head-locked and transparent, sized to the camera's field of view. It shows the skeleton colored per limb, limb score labels, the target posture, and a dashed ghost of the reference pose fitted to your body.
    - **Reference video panel:** grabbable.
    - **HUD:** score, limb bars, coach line, status. Also grabbable.
-6. The coach goes to `/api/coach` every 3.5–5.5 s, only while the video plays. It gets the per-limb comparison, deltas, milestones and a rotating style, and returns one spoken line plus an mp3.
+7. The coach goes to `/api/coach` every 3.5–5.5 s, only while the video plays. It gets the per-limb comparison, deltas, milestones and a rotating style, and returns one spoken line plus an mp3. The reference music fades to 25% while the coach speaks.
 
 **Controls in the headset:** **A** play/pause · **B** restart · **X** move the reference (left → top → right) · **Y** show/hide the camera feed (alignment aid) · **right stick** ↕ overlay size, ↔ x offset · **left stick** ↕ y offset · **trigger** on a panel: grab and move it.
 Desktop/emulator keys: `Space`, `R`, `L`, `C`, arrows, `[` `]`.
@@ -139,9 +140,10 @@ These are third-party YouTube videos, used as demo references for a hackathon pr
 **Test on a Quest 3:**
 1. Open `https://vercel-ff-five.vercel.app/xr` in Quest Browser.
 2. Pick the video, then tap **Allow camera**. Choose a camera labelled *(passthrough)*, set *Camera sees my reflection*, and pick a reference position.
-3. Stand about 1.2–1.5 m from a mirror (full-length is best) so the reflection shows your whole body.
+3. Stand about 1.7 m from a mirror (full-length is best). Closer than about 1.5 m, the camera's ~56° vertical view cuts off your reflected feet.
 4. Tap **Enter Mirror (MR)**.
-5. If the skeleton isn't on your reflection, press **Y** to show the camera feed and use the sticks to align it. Calibration is saved per device.
+5. If the skeleton isn't on your reflection, press **Y** to show the camera feed and use the sticks to align it. Calibration is saved per device. To start again from the defaults in `xr/src/session.ts`, open `/xr?recalibrate=1` once (it discards the saved calibration on every load while the parameter is in the URL).
+6. To hand the headset to the next person, leave XR. The setup screen comes back; pick a clip if you like and tap **Enter** again.
 
 **Desktop:** `/xr` on localhost or `*.vercel.app` gets the IWER Quest 3 emulator automatically. Use the laptop webcam with *Camera faces me*. Keep the tab in the foreground: Chrome throttles background tabs to 1 fps, which stalls IWSDK.
 
@@ -190,10 +192,15 @@ These are third-party YouTube videos, used as demo references for a hackathon pr
 ## TODO (build stops at 3:00pm, submit by 4:00pm, portal closes 4:10pm)
 
 **P0, must happen for eligibility and the demo**
-- [ ] **T1 Real-headset smoke test**: open `/xr` on a Quest 3 from the production URL. Check that a *facing back* camera shows up, permission works, XR launches, and tracking fps is above 8 (shown on the HUD). Report what breaks.
-- [ ] **T2 Mirror calibration**: set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
+- [ ] **T1 Real-headset smoke test** (Ali): open `/xr` on a Quest 3 from the production URL. Check that a *facing back* camera shows up, permission works, XR launches, and tracking fps is above 8 (shown on the HUD). Report what breaks.
+  - Code side done: Enter now requests the XR session first, inside the click (the browser refuses it a few seconds after a tap, and the old code waited for the pose model). A refused session or leaving XR brings the setup screen back. The pose model (~12 MB) now loads on the setup screen. Video panels refresh from the XR frame loop, since the browser's own video callbacks can stop in XR.
+  - On the headset, open `/xr?beacon=1` (the debug beacon is now opt-in). While in XR, read `curl -s https://<host>/api/debug | jq` and check: `visible` is `"visible"` (if `"hidden"`, the camera and video freeze and we need a different approach), `xr` is `"visible"`, `camera.w`×`camera.h` (expect 1280×960), `engine.fps` > 8, and `ref.t` advancing.
+- [ ] **T2 Mirror calibration** (Ali): set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
+  - Defaults now: distance 3.4 m (reflection depth for a user 1.7 m from the mirror), hfov 71°, offsetY −0.03 m, offsetX 0. Sources and reasoning are in the comment above `DEFAULT_CALIBRATION`. Not measured on a headset.
+  - On the headset: stand 1.7 m from the mirror, press **Y** to show the feed, align with the sticks, then copy `calibration` from `/api/debug` into `DEFAULT_CALIBRATION`. To learn which lens "camera 1" is, cover the left front camera with a finger: if the feed goes dark it's the left one and offsetX should be about −0.035, otherwise about +0.035. Open `/xr?recalibrate=1` to drop a saved calibration.
 - [x] **T3 Demo reference clips**: 14 clips (9 dance, 5 workout) are in the library with pose timelines precomputed. See [Reference library](#reference-library-scriptslibrary).
-- [ ] **T4 Audio check in headset**: reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
+- [ ] **T4 Audio check in headset** (Ali): reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
+  - Code side done: the music fades to 25% while the coach talks. The coach voice now reuses one audio element that is unlocked by the Enter tap, so the browser can't block lines spoken later in XR. Still needs an ears-on check in the headset.
 
 **P1, makes the demo land**
 - [ ] **T5 Spatial UI**: replace the canvas HUD with an IWSDK UIKit panel (`iwsdk-ui` skill) with play/pause, restart and layout buttons for hand-tracking users (no controllers).
@@ -236,7 +243,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 - **Reference clip:** a teammate films a 30–45 s front-facing routine on a phone (no rights issues, and it matches our skit). Upload it in the 2D app, then open it once on the laptop to cache the poses.
 - **Recording:** with the headset in developer mode (our Meta dev org), Meta Quest Developer Hub can cast and record the headset view on a laptop. Otherwise try the Quest's built-in recorder on an MR session first; if passthrough comes out black, film the cast window plus a phone shot of the person.
 - **Audio:** make sure the coach voice is audible in the recording and through the AV cast. Ask the AV team at 4:50 whether casting carries Quest audio; otherwise hold a mic near the headset speaker.
-- **Judges without a mirror:** Round 1 judges try it on a Quest themselves. Put "needs a mirror, stand 1.5 m away" at the top of the setup instructions, plus the video link as the fallback.
+- **Judges without a mirror:** Round 1 judges try it on a Quest themselves. Put "needs a mirror, stand 1.7 m away" at the top of the setup instructions, plus the video link as the fallback.
 
 ### Timeline (now → 4:00)
 | Time | What |
@@ -251,7 +258,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 
 **Name:** Mirror Coach
 **Description:** Mirror Coach turns any dance or workout video into a live, immersive lesson on Meta Quest 3. Stand in front of a real mirror in mixed reality. The headset's passthrough camera tracks your reflection with MediaPipe Pose and overlays your skeleton with every limb labelled and colored by how well it matches the reference. A ghost of the instructor's pose is fitted onto your body, and the reference video floats beside the mirror. A voice coach (Meta Llama 4 Scout through Vercel AI Gateway, with TTS) gives one specific correction every few seconds. Built with Meta's Immersive Web SDK (immersive-ar, passthrough camera, grabbable panels), Next.js on Vercel, Vercel Blob, Vercel Sandbox and AI Gateway with model fallbacks. Runs in Quest Browser from a live HTTPS URL. There's also a 2D web version for laptops.
-**Demo setup:** Needs a mirror (full-length is best). Open `/xr` on a Quest 3, allow camera access, pick the "(passthrough)" camera, stand facing the mirror about 1.5 m away, then Enter Mirror (MR). No login. Demo video: <link>. Without a mirror, choose "Camera faces me" in the 2D view; on desktop the Quest emulator loads automatically.
+**Demo setup:** Needs a mirror (full-length is best). Open `/xr` on a Quest 3, allow camera access, pick the "(passthrough)" camera, stand facing the mirror about 1.7 m away, then Enter Mirror (MR). No login. Demo video: <link>. Without a mirror, choose "Camera faces me" in the 2D view; on desktop the Quest emulator loads automatically.
 
 ## Conventions for humans and agents
 
@@ -260,13 +267,14 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 - Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
 - Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
 - Debug the headset from the console: `mirrorCoach.engine.state` (score, limbs, fps, coach line) and `mirrorCoach.calibration`.
-- **Remote headset debugging (no adb needed):** `/xr` posts its state every 2 s. Read it with `curl -s https://vercel-ff-five.vercel.app/api/debug | jq` (camera list and resolution, tracking fps, score, limbs, coach line, calibration, last errors). Add `?beacon=0` to turn it off.
+- **Remote headset debugging (no adb needed):** open `/xr?beacon=1` and it posts its state every 5 s. Read it with `curl -s https://vercel-ff-five.vercel.app/api/debug | jq` (camera list and resolution, tracking fps, score, limbs, coach line, calibration, last errors). It's opt-in because every post is a Vercel Blob write, and the video library lives in the same Blob store.
 - IWSDK skills for agents: `xr/.claude/skills` (Claude Code), `xr/.agents` (Codex), `xr/.cursor` (Cursor), plus the Meta-provided `.claude/skills/iwsdk-dev`.
 
 ## Known gotchas
 
 - **Quest camera permission** must be granted in 2D *before* entering XR. Requesting it inside the session ends the session.
+- **Request the XR session synchronously inside the Enter click** (`world.launchXR()` before any `await`). The browser only grants an immersive session during a fresh user gesture, so waiting on the pose model or a fetch first can get it refused on a real Quest. Unlock audio in the same click: `unlockSpeech()` (coach voice) and a play/pause of the reference.
 - **YouTube blocks datacenter IPs**, including Vercel Sandbox ("Sign in to confirm you're not a bot"). Ingest from a laptop, or set a proxy.
 - **The emulator spoofs the Quest user agent** (`OculusBrowser/33`), so don't detect the headset by user agent.
-- **MediaPipe Pose (legacy) misbehaves with several instances per page.** In XR the reference analysis finishes before live tracking starts.
+- **MediaPipe Pose (legacy) misbehaves with several instances per page.** In XR the live model preloads only after the first clip's timeline is ready, and a later in-browser analysis waits for it. Switching to a clip without a saved timeline after that still runs a second instance, so use clips whose timelines are saved (all curated clips are).
 - **Hidden tabs** throttle requestAnimationFrame to 1 Hz. `World.create` and tracking stall until the tab is visible.
