@@ -20,7 +20,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 | --- | --- |
 | 2D app on Vercel (library, upload, YouTube, live pose, scoring, voice coach, report card) | ✅ deployed |
 | All AI through **Vercel AI Gateway** (coach, vision scoring, report, classification, TTS) with fallbacks | ✅ verified locally |
-| Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ |
+| Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ 14 curated clips (9 dance, 5 workout), compressed to 540p, pose timelines precomputed, so nothing waits on a download or analysis |
 | YouTube download: local yt-dlp → Blob ✅ · **Vercel Sandbox** yt-dlp ⚠️ blocked by YouTube's bot check unless `YTDLP_PROXY` / `YTDLP_COOKIES` is set |
 | **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach |
 | On a **real Quest 3** in front of a mirror | ❌ **not tested yet**, the #1 TODO |
@@ -45,7 +45,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 ```
 
 **In the headset (`xr/`):**
-1. The setup screen (2D, before entering XR) loads the library, downloads the clip into memory, and fetches its pose timeline. If no device has analyzed the clip yet, it runs MediaPipe over it and saves the timeline for everyone.
+1. The setup screen (2D, before entering XR) loads the library, downloads the clip into memory (5–10 MB for curated clips), and fetches its pose timeline. Curated clips ship one computed offline. For anything else, the first device to open it runs MediaPipe over it and saves the timeline for everyone.
 2. **Camera permission is requested before entering XR.** Quest Browser exposes the passthrough cameras to `getUserMedia` as "camera 1/2, facing back". IWSDK's `CameraUtils` finds them; the stream is opened directly.
 3. In the immersive session, `MirrorSystem` runs every XR frame (window `requestAnimationFrame` doesn't fire in immersive mode). It sends camera frames to MediaPipe Pose (lite) at about 15 Hz.
 4. `CoachEngine` compares your pose to the reference frame at the video's current time in **reflection space**: you follow the video the way you'd follow a dance-studio mirror. Limb names are swapped back to your real body for labels and voice, because a mirror flips left and right.
@@ -98,6 +98,43 @@ PORT=3100 pnpm dev     # http://localhost:3100 and http://localhost:3100/xr
 Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-managed Vite on https://localhost:8081, proxies `/api` to `localhost:3100`). Read [`xr/AGENTS.md`](./xr/AGENTS.md) first: IWSDK is **not** plain Vite (`iwsdk.config.json` is the authority, import Three from `@iwsdk/core`, no allocation in `update()`).
 
 **Add a reference video:** in the 2D app use **Library → + Upload clip**, or **YouTube URL** (works locally via yt-dlp; it's stored in Blob, so the deployed app and headset see it right away).
+
+### Reference library (`scripts/library/`)
+
+The curated clips are listed in [`scripts/library/clips.json`](./scripts/library/clips.json) (`id` is the YouTube id; optional `start`/`end` trim in seconds). `ingest.mjs` processes each clip, four at a time:
+
+1. Downloads it with yt-dlp.
+2. Trims it and re-encodes to 540p at about 1 Mbps, with a keyframe every second and faststart.
+3. Runs `poses.py` (MediaPipe PoseLandmarker *heavy*, 0.25 s step, follows one performer).
+4. Uploads the mp4, the meta and the timeline to Blob.
+
+```bash
+vercel env pull .env.local                                            # BLOB_READ_WRITE_TOKEN
+node --env-file=.env.local scripts/library/ingest.mjs                 # all clips (~5 min)
+node --env-file=.env.local scripts/library/ingest.mjs <id> [<id>...]  # add or redo some
+node scripts/library/ingest.mjs --dry-run <id>                        # check quality, no upload
+```
+
+Needs `yt-dlp`, `ffmpeg` and `uv`. `uv` runs `poses.py` with its inline dependencies on Python 3.12. Work files go in `.tools/` (gitignored). Each line prints `detected` (the share of frames with a person) and `fullBody` (the share with nose, wrists and ankles all visible). Keep clips with one performer, facing the camera, a fixed camera and no cuts: aim for `detected` ≥ 0.9.
+
+The order in `clips.json` is the order in the library dropdown. Anything uploaded later appears above it. The `/api/poses` PUT keeps the first timeline saved, so a browser's coarser pass never replaces the offline one.
+
+| Mode | Clip | Credit (YouTube) |
+| --- | --- | --- |
+| dance | Rat Dance · tutorial | Bizzy Boom |
+| dance | Macarena · step by step | wikiHow |
+| dance | Greedy (Tate McRae) · beginner choreo | Tiana Shern |
+| dance | The Griddy · tutorial | 1NINEFIVE |
+| dance | The Floss · step by step | wikiHow |
+| dance | Zumba warm-ups: Let's Go, Aguita, Marimba | Z-Therapy Holly Corrente |
+| dance | Sharara · easy choreo | Boomoves |
+| gym | High knees · 1 min | Olena |
+| gym | Jumping jacks · 1 min | GVSU Human Resources |
+| gym | Squats · 20 reps | Roberta's Gym Love |
+| gym | Wide squats · 1 min | WatchFit |
+| gym | Shadow boxing · 1 min | ABOVEBOXING |
+
+These are third-party YouTube videos, used as demo references for a hackathon prototype and credited above. They are not ours to redistribute. Before any public launch, replace them with clips we record or license.
 
 **Test on a Quest 3:**
 1. Open `https://vercel-ff-five.vercel.app/xr` in Quest Browser.

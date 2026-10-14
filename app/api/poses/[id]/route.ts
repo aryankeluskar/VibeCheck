@@ -47,6 +47,10 @@ export async function PUT(
   if (!Array.isArray(timeline) || timeline.length === 0) {
     return NextResponse.json({ error: "Expected a non-empty timeline" }, { status: 400 });
   }
+  // First timeline wins: curated clips ship a denser offline timeline
+  // (scripts/library) that a browser's coarser pass must not replace.
+  const existing = await head(pathname(id)).catch(() => null);
+  if (existing) return NextResponse.json({ ok: true, kept: true });
   await put(pathname(id), body, {
     access: "public",
     contentType: "application/json",

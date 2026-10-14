@@ -77,6 +77,8 @@ export function setupScreen(world: World) {
       const video = document.createElement('video');
       video.playsInline = true;
       video.preload = 'auto';
+      // Practice on repeat, so short clips don't stop mid-demo.
+      video.loop = true;
       video.src = src;
       session.reference = video;
 
