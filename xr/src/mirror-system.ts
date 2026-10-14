@@ -458,6 +458,9 @@ export class MirrorSystem extends createSystem({}) {
 
     // The reference loops; a jump from the end back to the start is a finished run.
     const refNow = session.reference!;
+    // Anything that resumes the clip while the report card is up (Play, a
+    // gesture, an agent) starts the next run: card away, skeleton back.
+    if (this.report.mesh.visible && !refNow.paused) this.goAgain();
     const t = refNow.currentTime;
     if (!refNow.paused && !this.report.mesh.visible && this.lastRefT > refNow.duration - 1 && t < this.lastRefT - 1) {
       this.finishRun();

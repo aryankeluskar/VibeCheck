@@ -208,6 +208,15 @@ try {
   summary.again = again;
   await shot("05-go-again");
   check(go.hovered && again.report === "none" && again.refPaused === false && again.refT < 3, `Go again button on the card hides it and restarts the clip (hovered ${go.hovered})`);
+
+  // Play (not Go again) with the card up must also start the next run, or the
+  // skeleton stays hidden behind a stale card for the whole run.
+  await page.evaluate(() => window.mirrorCoach.finishRun());
+  await waitFor(() => window.mirrorCoach.reportStatus() !== "none", null, 10_000);
+  await page.evaluate(() => window.mirrorCoach.agent.do("play"));
+  await page.waitForTimeout(800);
+  const played = await state();
+  check(played.report === "none" && played.refPaused === false, `Play with the card up starts the next run (report ${played.report})`);
 } catch (err) {
   failures.push(String(err.message ?? err).split("\n")[0]);
   console.log(`FAIL  ${failures.at(-1)}`);
