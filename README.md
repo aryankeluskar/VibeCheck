@@ -199,7 +199,7 @@ These are third-party YouTube videos, used as demo references for a hackathon pr
 - [ ] **T5 Spatial UI**: replace the canvas HUD with an IWSDK UIKit panel (`iwsdk-ui` skill) with play/pause, restart and layout buttons for hand-tracking users (no controllers).
 - [ ] **T6 Hand tracking input**: pinch to play/pause, and `GrabSystem.useHandPinchForGrab` for moving panels.
 - [ ] **T7 Vision anchor in XR**: blend `/api/score` (Llama 4 Scout vision) into the XR score every 3 s, as the 2D app does (`app/lib/groqScoring.ts`). Capture from `session.camera` and the reference video.
-- [ ] **T8 Session summary in XR**: when the video ends, show the report card (`/api/report`) on a panel.
+- [ ] **T8 Session summary in XR** (Aryan, in progress): when the video ends, show the report card (`/api/report`) on a panel.
 
 **P2, nice to have**
 - [ ] **T9 Backup demo video**: screen-record the IWER emulator run and the real headset cast. Upload it and add it to the submission links.
