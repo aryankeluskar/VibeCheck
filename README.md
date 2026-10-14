@@ -2,9 +2,10 @@
 
 Demo video: https://youtu.be/oF5_4Gov9E8
 
-**Real-time mixed-reality dance and fitness coaching, on your own reflection.**
+**Real-time mixed-reality dance and fitness coaching, in your own mirror with Meta Quest 3.**
 
-<img width="1400" alt="VibeCheck on a Quest 3: the Rat Dance reference video above a real mirror, the live HUD with match score and limb bars, pinch buttons, and the end-of-run report card" src="docs/mirror-coach.jpg" />
+<img width="1400" alt="The full view in the headset: the Rat Dance reference video above the mirror, the live HUD with match score and limb bars, pinch buttons, and the end-of-run report card" src="docs/mirror-coach.jpg" />
+<img width="620" alt="VibeCheck seen through a Quest 3: a skeleton with per-limb scores (left arm 71, right arm 68, left leg 99, right leg 97) drawn on a reflection in a real mirror" src="docs/skeleton.jpg" />
 
 We built it in one day at the Fast Forward Hackathon, Vercel × Meta, on Oct 14 2026, for the VR Apps track.
 
