@@ -7,6 +7,22 @@ alwaysApply: true
 
 This repo is an entry for the Fast Forward Hackathon. Optimize every decision for a working, deployed demo that scores well against the track rubric below, before the submission deadline. Scope ruthlessly: one useful outcome, demonstrated live, beats many half-working features.
 
+## Team coordination (mandatory before claiming any TODO)
+
+Four people and their agents work in parallel. Claims and work in progress often sit on branches (e.g. `claude/*`) that haven't reached `master` yet. **Before you claim or start any TODO in `README.md`, check every other branch of work:**
+
+```bash
+git fetch --all --prune
+git branch -r --sort=-committerdate               # recent branches first
+git log --oneline master..origin/<branch>         # what each recent branch adds
+git diff --stat master...origin/<branch>          # which files it touches
+gh pr list                                        # open PRs
+```
+
+- If any branch claims the TODO (a name next to it) or already changes the files it needs, don't take it. Pick another TODO or ask the user to coordinate.
+- When you claim a TODO, push that one-line README change straight to `master` right away so other branches see it. A claim that only lives on your branch is invisible.
+- Before you push, fetch again and rebase on `master`. Don't rewrite lines that another open branch changes (the TODO block especially); add notes nearby instead.
+
 Sources (re-check if something seems off; organizers mark some details "to confirm"):
 - Deck: https://fast-forward-deck.vercel.app (local clone in `slides/`, serve with `python3 -m http.server` from that dir)
 - Builder Resources: https://vercel.notion.site/Builder-Resources-Fast-Forward-3f3e06b059c4818eba9ada18e6f32dc0

@@ -141,6 +141,8 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 
 4 members. Pick whatever TODO you want and put your name on it (edit this file or say so in the group chat).
 
+> **Check other branches before you claim a TODO (everyone, every agent).** Claims and work in progress often sit on a branch that hasn't reached `master` yet. Run `git fetch --all --prune`, then `git branch -r --sort=-committerdate`, then `git log --oneline master..origin/<branch>` for each recent branch, and `gh pr list`. If a branch claims the TODO (a name next to it) or already changes the files it touches, pick another one or coordinate in the group chat. When you claim a TODO, push that one-line README change straight to `master` so everyone sees it.
+
 | # | Name | GitHub |
 | --- | --- | --- |
 | 1 | Aryan Keluskar | [@aryankeluskar](https://github.com/aryankeluskar) |
@@ -216,6 +218,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 
 ## Conventions for humans and agents
 
+- **Check other branches before claiming or starting a TODO** (see [Team](#team)): `git fetch --all --prune && git branch -r --sort=-committerdate`, then `git log --oneline master..origin/<branch>`. Never claim work that another branch already claims or touches.
 - **Pull before you push; commit small and often.** `master` auto-deploys to production; every other branch gets a public preview (see Deploying). Re-open the URL after each deploy.
 - Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
 - Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
