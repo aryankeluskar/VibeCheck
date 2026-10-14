@@ -3,7 +3,7 @@
  * grants camera access outside XR, so permission is requested here.
  */
 
-import { CameraFacing, CameraUtils, type World } from '@iwsdk/core';
+import { CameraFacing, CameraUtils, VisibilityState, type World } from '@iwsdk/core';
 import { beaconInfo } from './beacon.js';
 import { session, type RefLayout } from './session.js';
 
@@ -180,17 +180,70 @@ export function setupScreen(world: World) {
   });
   cameraSelect.addEventListener('change', () => startCamera(cameraSelect.value));
 
-  enterBtn.addEventListener('click', async () => {
-    if (!session.reference || !session.camera) return;
+  // Leaving XR (Meta button, headset off) brings the setup screen back so the
+  // next person can tap Enter again without reloading.
+  let wasImmersive = false;
+  world.visibilityState.subscribe((state) => {
+    if (state !== VisibilityState.NonImmersive) {
+      wasImmersive = true;
+      return;
+    }
+    if (!wasImmersive) return;
+    wasImmersive = false;
+    session.reference?.pause();
+    $('setup').classList.remove('hidden');
+    say('Session ended. Tap Enter to go back in.');
+    refresh();
+  });
+
+  /** Reports a session request the headset refused (permission denied, unsupported feature). */
+  const watchSession = () => {
+    const startedAt = performance.now();
+    const timer = setInterval(() => {
+      if (world.session) {
+        clearInterval(timer);
+        return;
+      }
+      const settled = !world.sessionRequestPending && performance.now() - startedAt > 500;
+      if (!settled && performance.now() - startedAt < 30_000) return;
+      clearInterval(timer);
+      session.reference?.pause();
+      $('setup').classList.remove('hidden');
+      say('Could not start mixed reality. Accept the headset permission prompt, then tap Enter again.');
+      console.error('[mirror-coach] XR session did not start');
+      refresh();
+    }, 250);
+  };
+
+  enterBtn.addEventListener('click', () => {
+    const reference = session.reference;
+    const camera = session.camera;
+    if (!reference || !camera) return;
     enterBtn.disabled = true;
     say('Starting…');
-    // Start playback inside the click so audio is allowed; pause until in XR.
-    session.reference.play().then(() => session.reference?.pause()).catch(() => {});
-    await session.engine.start(session.camera, session.reference, { lite: params.get('full') !== '1' });
+    // WebXR only grants a session inside a live user gesture, and Chromium
+    // expires that after a few seconds. Request the session first, while the
+    // click is still fresh; the pose model loads afterwards (the HUD shows it).
+    if (world.xrEnabled) {
+      world.launchXR();
+      watchSession();
+    }
+    // Start playback inside the click so audio is allowed; pause until tracking starts.
+    const unlock = reference.play().then(() => reference.pause()).catch(() => {});
     session.started = true;
     $('setup').classList.add('hidden');
-    if (world.xrEnabled) world.launchXR();
-    session.reference.currentTime = 0;
-    session.reference.play().catch(() => {});
+    void (async () => {
+      try {
+        await session.engine.start(camera, reference, { lite: params.get('full') !== '1' });
+      } catch (err) {
+        session.engine.setStatus('Pose model failed to load. Check Wi-Fi and re-enter.');
+        console.error('[mirror-coach] pose model failed', err);
+        return;
+      }
+      // Let the unlock play/pause settle first, or its pause() would stop the real start.
+      await unlock;
+      reference.currentTime = 0;
+      reference.play().catch(() => {});
+    })();
   });
 }

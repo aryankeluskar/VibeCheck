@@ -132,6 +132,7 @@ export class CoachEngine {
   voice = true;
 
   private pose: any = null;
+  private poseLoading: Promise<any> | null = null;
   private inflight = false;
   private lastSend = 0;
   private sendIntervalMs = 66;
@@ -181,9 +182,22 @@ export class CoachEngine {
     this.smoothed = 0;
     if (!this.pose) {
       this.setStatus('Loading pose model…');
-      this.pose = await loadPose();
-      this.pose.setOptions({ modelComplexity: opts.lite ? 0 : 1 });
-      this.pose.onResults((r: PoseResults) => this.onResults(r));
+      // Share one in-flight load: a second Enter tap must not create a second
+      // MediaPipe instance (they misbehave side by side).
+      this.poseLoading ??= loadPose().then(async (pose: any) => {
+        pose.setOptions({ modelComplexity: opts.lite ? 0 : 1 });
+        pose.onResults((r: PoseResults) => this.onResults(r));
+        // Download the wasm + model now rather than on the first frame, so
+        // "Tracking" means tracking and the video doesn't start early.
+        await pose.initialize?.();
+        return pose;
+      });
+      try {
+        this.pose = await this.poseLoading;
+      } catch (err) {
+        this.poseLoading = null;
+        throw err;
+      }
     }
     this.setStatus('Tracking');
   }
