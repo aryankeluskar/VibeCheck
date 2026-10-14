@@ -1,1 +1,175 @@
-# vercel_ff
+# Mirror Coach
+
+**Learn any move from a video, with a coach that watches you.** Put on a Meta Quest 3, stand in front of a real mirror, and pick a dance or workout video. The headset camera watches your reflection and draws your skeleton over it, with every limb labelled and colored by how closely it matches the reference. A ghost of the reference dancer's pose is fitted onto your body so you can see where each limb should be. The reference video floats beside the mirror (left, top, or right), and a voice coach tells you in real time what to fix ("drop your right shoulder, reach higher with the left arm").
+
+Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **VR Apps** track.
+
+| | URL |
+| --- | --- |
+| Mixed-reality mirror (Quest) | `https://vercel-ff-five.vercel.app/xr` |
+| 2D web app (laptop / phone) | `https://vercel-ff-five.vercel.app/` |
+| Repo | https://github.com/aryankeluskar/vercel_ff |
+
+> Hackathon rules, deadlines, rubric and partner tooling: [`AGENTS.md`](./AGENTS.md) (also auto-loaded by Cursor via `.cursor/rules`). The deck is cloned in [`slides/`](./slides).
+
+---
+
+## Status (updated 1:10pm)
+
+| Area | State |
+| --- | --- |
+| 2D app on Vercel (library, upload, YouTube, live pose, scoring, voice coach, report card) | ✅ deployed |
+| All AI through **Vercel AI Gateway** (coach, vision scoring, report, classification, TTS) with fallbacks | ✅ verified locally |
+| Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ |
+| YouTube download: local yt-dlp → Blob ✅ · **Vercel Sandbox** yt-dlp ⚠️ blocked by YouTube's bot check unless `YTDLP_PROXY` / `YTDLP_COOKIES` is set |
+| **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach |
+| On a **real Quest 3** in front of a mirror | ❌ **not tested yet**, the #1 TODO |
+
+---
+
+## How it works
+
+```
+                 ┌────────────────── Next.js on Vercel ───────────────────┐
+ Laptop (2D) ──▶ │ /            2D coach (webcam + reference side by side) │
+ Quest (MR)  ──▶ │ /xr          IWSDK mirror app (built from xr/)          │
+                 │ /api/library   list videos        (Vercel Blob)         │
+                 │ /api/download  YouTube → Blob     (local yt-dlp │ Sandbox)│
+                 │ /api/upload    browser → Blob token (clips, recordings) │
+                 │ /api/video/:id 307 → Blob mp4 (CORS ok, byte ranges)    │
+                 │ /api/poses/:id dense reference pose timeline (Blob)     │
+                 │ /api/coach     coach line + TTS mp3 ─┐                  │
+                 │ /api/score     vision pose match    ─┼─▶ AI Gateway     │
+                 │ /api/report    end-of-session card  ─┘                  │
+                 └─────────────────────────────────────────────────────────┘
+```
+
+**In the headset (`xr/`):**
+1. The setup screen (2D, before entering XR) loads the library, downloads the clip into memory, and fetches its pose timeline. If no device has analyzed the clip yet, it runs MediaPipe over it and saves the timeline for everyone.
+2. **Camera permission is requested before entering XR.** Quest Browser exposes the passthrough cameras to `getUserMedia` as "camera 1/2, facing back". IWSDK's `CameraUtils` finds them; the stream is opened directly.
+3. In the immersive session, `MirrorSystem` runs every XR frame (window `requestAnimationFrame` doesn't fire in immersive mode). It sends camera frames to MediaPipe Pose (lite) at about 15 Hz.
+4. `CoachEngine` compares your pose to the reference frame at the video's current time in **reflection space**: you follow the video the way you'd follow a dance-studio mirror. Limb names are swapped back to your real body for labels and voice, because a mirror flips left and right.
+5. Panels:
+   - **Overlay:** head-locked and transparent, sized to the camera's field of view. It shows the skeleton colored per limb, limb score labels, the target posture, and a dashed ghost of the reference pose fitted to your body.
+   - **Reference video panel:** grabbable.
+   - **HUD:** score, limb bars, coach line, status. Also grabbable.
+6. The coach goes to `/api/coach` every 3.5–5.5 s, only while the video plays. It gets the per-limb comparison, deltas, milestones and a rotating style, and returns one spoken line plus an mp3.
+
+**Controls in the headset:** **A** play/pause · **B** restart · **X** move the reference (left → top → right) · **Y** show/hide the camera feed (alignment aid) · **right stick** ↕ overlay size, ↔ x offset · **left stick** ↕ y offset · **trigger** on a panel: grab and move it.
+Desktop/emulator keys: `Space`, `R`, `L`, `C`, arrows, `[` `]`.
+
+### Model routing (AI Gateway)
+
+All calls go through `app/lib/ai.ts`. Each task has a primary model and Gateway-side fallbacks (`providerOptions.gateway.models`):
+
+| Task | Primary | Fallbacks | Why |
+| --- | --- | --- | --- |
+| Coach line (every ~4 s) | `meta/llama-4-scout` | `google/gemini-3.5-flash-lite`, `openai/gpt-4o-mini` | Lowest latency (about 1 s), cheap, Meta model |
+| Vision pose match (reference frame vs. you) | `meta/llama-4-scout` (multimodal) | same | ~1.2 s per call |
+| Voice | `openai/tts-1` | `google/gemini-3.8-flash-lite-tts` | Fast mp3; voice per mode (dance/gym) |
+| Report card | `meta/llama-4-maverick` | `google/gemini-3.5-flash`, `openai/gpt-4o-mini` | One-shot, quality over latency |
+| Dance vs. fitness | `meta/llama-3.1-8b` | `google/gemini-3.5-flash-lite` | Tiny classification |
+
+Measured locally: coach line plus TTS in 3.4 s end to end (67 KB mp3); vision score in 1.2 s.
+
+### Blob layout
+
+```
+videos/<id>.mp4      reference clip (YouTube id or up_<random> for uploads)
+videos/<id>.json     { id, title, mode: dance|gym, source, createdAt }
+poses/<id>.v1.json   dense pose timeline [{ time, landmarks[33] }]
+recordings/<uuid>.webm  session recordings (2D app)
+```
+
+---
+
+## Run it
+
+Requirements: Node 24+, pnpm 10, and for YouTube ingest a recent `yt-dlp` (`brew install yt-dlp`, keep it updated, since old versions get HTTP 403).
+
+```bash
+vercel link            # team "Aryan Keluskar's projects", project vercel-ff (ask Aryan for access)
+vercel env pull .env.local   # BLOB_READ_WRITE_TOKEN + VERCEL_OIDC_TOKEN (AI Gateway + Sandbox auth, expires ~12h, re-pull)
+pnpm install
+pnpm build:xr          # builds xr/ into public/xr (needed for /xr in next dev)
+PORT=3100 pnpm dev     # http://localhost:3100 and http://localhost:3100/xr
+```
+
+Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-managed Vite on https://localhost:8081, proxies `/api` to `localhost:3100`). Read [`xr/AGENTS.md`](./xr/AGENTS.md) first: IWSDK is **not** plain Vite (`iwsdk.config.json` is the authority, import Three from `@iwsdk/core`, no allocation in `update()`).
+
+**Add a reference video:** in the 2D app use **Library → + Upload clip**, or **YouTube URL** (works locally via yt-dlp; it's stored in Blob, so the deployed app and headset see it right away).
+
+**Test on a Quest 3:**
+1. Open `https://vercel-ff-five.vercel.app/xr` in Quest Browser.
+2. Pick the video, then tap **Allow camera**. Choose a camera labelled *(passthrough)*, set *Camera sees my reflection*, and pick a reference position.
+3. Stand about 1.2–1.5 m from a mirror (full-length is best) so the reflection shows your whole body.
+4. Tap **Enter Mirror (MR)**.
+5. If the skeleton isn't on your reflection, press **Y** to show the camera feed and use the sticks to align it. Calibration is saved per device.
+
+**Desktop:** `/xr` on localhost or `*.vercel.app` gets the IWER Quest 3 emulator automatically. Use the laptop webcam with *Camera faces me*. Keep the tab in the foreground: Chrome throttles background tabs to 1 fps, which stalls IWSDK.
+
+### Env vars
+
+| Var | Where | Purpose |
+| --- | --- | --- |
+| `BLOB_READ_WRITE_TOKEN` | Vercel (all envs) | Video library, poses, uploads |
+| `VERCEL_OIDC_TOKEN` | auto on Vercel; `vercel env pull` locally | AI Gateway and Sandbox auth (no API key needed) |
+| `AI_GATEWAY_API_KEY` | optional | Alternative Gateway auth |
+| `YTDLP_PROXY` | optional | Residential proxy URL so the Sandbox can get past YouTube's bot check |
+| `YTDLP_COOKIES` | optional | Netscape cookies.txt contents (same purpose; use a throwaway account) |
+| `SAM2_ENDPOINT_URL` | optional, local only | Dancer segmentation overlay (Modal, `services/sam2`) |
+
+**Never commit** `.env*`, credit codes, or tokens.
+
+---
+
+## Team
+
+| Who | GitHub | Suggested focus (claim or swap in the group chat) |
+| --- | --- | --- |
+| Aryan Keluskar | [@aryankeluskar](https://github.com/aryankeluskar) | Engine, APIs, Vercel/AI Gateway, integration, submission |
+| Ali Sasanian | [@Gond-ul](https://github.com/Gond-ul) | Headset bring-up and mirror calibration on a real Quest 3 (T1, T2, T6) |
+| Lucas Masen | [@lucasmasen](https://github.com/lucasmasen) | XR scene polish: panels, spatial UI, v0/IWSDK look and feel (T4, T5, T8) |
+| Cristal | [@cristalj](https://github.com/cristalj) | Demo video, reference clips, submission copy, rehearsal (T3, T9, T10) |
+
+## TODO (build stops at 3:00pm, submit by 4:00pm, portal closes 4:10pm)
+
+**P0, must happen for eligibility and the demo**
+- [ ] **T1 Real-headset smoke test**: open `/xr` on a Quest 3 from the production URL. Check that a *facing back* camera shows up, permission works, XR launches, and tracking fps is above 8 (shown on the HUD). Report what breaks.
+- [ ] **T2 Mirror calibration**: set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
+- [ ] **T3 Demo reference clips**: pick 1–2 short (30–60 s), full-body, front-facing clips with clear moves. Add them through the 2D app and open each once on the laptop so its pose timeline is cached before the headset loads it. Prefer clips we recorded ourselves (no rights issues).
+- [ ] **T4 Audio check in headset**: reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
+
+**P1, makes the demo land**
+- [ ] **T5 Spatial UI**: replace the canvas HUD with an IWSDK UIKit panel (`iwsdk-ui` skill) with play/pause, restart and layout buttons for hand-tracking users (no controllers).
+- [ ] **T6 Hand tracking input**: pinch to play/pause, and `GrabSystem.useHandPinchForGrab` for moving panels.
+- [ ] **T7 Vision anchor in XR**: blend `/api/score` (Llama 4 Scout vision) into the XR score every 3 s, as the 2D app does (`app/lib/groqScoring.ts`). Capture from `session.camera` and the reference video.
+- [ ] **T8 Session summary in XR**: when the video ends, show the report card (`/api/report`) on a panel.
+
+**P2, nice to have**
+- [ ] **T9 Backup demo video**: screen-record the IWER emulator run and the real headset cast. Upload it and add it to the submission links.
+- [ ] **T10 Submission copy**: draft below. Confirm the production URL works signed-out and on another device.
+- [ ] YouTube in production: set `YTDLP_PROXY` (residential) so `/api/download` works from Vercel without the laptop.
+- [ ] Generation mode: rebuild "describe a move → AI video" on AI Gateway video models (`experimental_generateVideo`, e.g. `google/veo-3.1-fast-generate-001`) to replace the old Perplexity/HeyGen/xAI path in `app/api/generate`.
+
+## Submission draft (VR Apps track)
+
+**Name:** Mirror Coach
+**Description:** Mirror Coach turns any dance or workout video into a live, immersive lesson on Meta Quest 3. Stand in front of a real mirror in mixed reality. The headset's passthrough camera tracks your reflection with MediaPipe Pose and overlays your skeleton with every limb labelled and colored by how well it matches the reference. A ghost of the instructor's pose is fitted onto your body, and the reference video floats beside the mirror. A voice coach (Meta Llama 4 Scout through Vercel AI Gateway, with TTS) gives one specific correction every few seconds. Built with Meta's Immersive Web SDK (immersive-ar, passthrough camera, grabbable panels), Next.js on Vercel, Vercel Blob, Vercel Sandbox and AI Gateway with model fallbacks. Runs in Quest Browser from a live HTTPS URL. There's also a 2D web version for laptops.
+**Demo setup:** Open `/xr` on a Quest 3 and allow camera access. Stand facing a mirror about 1.5 m away, then Enter Mirror (MR). No login. Without a mirror, choose "Camera faces me" in the 2D view; on desktop the Quest emulator loads automatically.
+
+## Conventions for humans and agents
+
+- **Pull before you push; commit small and often.** `master` auto-deploys to production on Vercel. Re-open the production URL after each deploy.
+- Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
+- Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
+- Debug the headset from the console: `mirrorCoach.engine.state` (score, limbs, fps, coach line) and `mirrorCoach.calibration`.
+- IWSDK skills for agents: `xr/.claude/skills` (Claude Code), `xr/.agents` (Codex), `xr/.cursor` (Cursor), plus the Meta-provided `.claude/skills/iwsdk-dev`.
+
+## Known gotchas
+
+- **Quest camera permission** must be granted in 2D *before* entering XR. Requesting it inside the session ends the session.
+- **YouTube blocks datacenter IPs**, including Vercel Sandbox ("Sign in to confirm you're not a bot"). Ingest from a laptop, or set a proxy.
+- **The emulator spoofs the Quest user agent** (`OculusBrowser/33`), so don't detect the headset by user agent.
+- **MediaPipe Pose (legacy) misbehaves with several instances per page.** In XR the reference analysis finishes before live tracking starts.
+- **Hidden tabs** throttle requestAnimationFrame to 1 Hz. `World.create` and tracking stall until the tab is visible.

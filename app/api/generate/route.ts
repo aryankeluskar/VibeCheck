@@ -5,7 +5,7 @@ import path from "path";
 import { generateVideo, waitForVideo, downloadVideo } from "../../lib/grok";
 import OpenAI from "openai";
 
-const VIDEO_DIR = "/tmp/jigglewiggle";
+const VIDEO_DIR = "/tmp/movement-coach";
 
 function sse(data: Record<string, unknown>): string {
   return `data: ${JSON.stringify(data)}\n\n`;

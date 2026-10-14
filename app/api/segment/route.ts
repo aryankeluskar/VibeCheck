@@ -4,7 +4,7 @@ import path from "path";
 
 export const maxDuration = 600; // 10 minutes
 
-const VIDEO_DIR = "/tmp/jigglewiggle";
+const VIDEO_DIR = "/tmp/movement-coach";
 const MODAL_ENDPOINT_URL = process.env.SAM2_ENDPOINT_URL ?? "";
 
 function maskPath(videoId: string) {

@@ -951,7 +951,7 @@ export default function Home() {
             className="text-xl tracking-[0.2em] uppercase neon-title animate-flicker"
             style={{ fontFamily: "var(--font-audiowide)" }}
           >
-            {mode === "gym" ? "Iron Form" : "Jiggle Wiggle"}
+            {mode === "gym" ? "Iron Form" : "Mirror Coach"}
           </h1>
           <div className="h-5 w-px bg-neon-cyan/20" />
           <span
@@ -994,12 +994,14 @@ export default function Home() {
           )}
         </div>
 
-        {/* Spacer to balance the title on the left */}
-        <div className="flex items-center gap-4 invisible">
-          <h1 className="text-xl tracking-[0.2em] uppercase">
-            {mode === "gym" ? "Iron Form" : "Jiggle Wiggle"}
-          </h1>
-        </div>
+        {/* Open the same video in the Quest mixed-reality mirror */}
+        <a
+          href={videoId ? `/xr?v=${encodeURIComponent(videoId)}` : "/xr"}
+          className="px-4 py-2 text-[10px] tracking-[0.25em] uppercase border border-neon-magenta/50 text-neon-magenta hover:bg-neon-magenta/10 rounded-sm whitespace-nowrap"
+          style={{ fontFamily: "var(--font-audiowide)" }}
+        >
+          Mirror MR (Quest)
+        </a>
       </header>
 
       {/* Neon Divider */}

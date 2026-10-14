@@ -21,7 +21,7 @@ image = (
     )
 )
 
-app = modal.App("jigglewiggle-sam2", image=image)
+app = modal.App("movement-coach-sam2", image=image)
 
 cache_vol = modal.Volume.from_name("hf-hub-cache", create_if_missing=True)
 cache_dir = "/cache"
