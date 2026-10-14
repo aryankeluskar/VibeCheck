@@ -153,6 +153,11 @@ export class CoachEngine {
   private runFrames = 0;
   private runStart = 0;
 
+  /** Track a different camera mid-session (camera switched on the setup screen or by an agent). */
+  setCamera(camera: HTMLVideoElement) {
+    this.camera = camera;
+  }
+
   /** Start a fresh run: the report card covers one play-through of the clip. */
   resetRun() {
     resetSessionStats();

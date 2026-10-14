@@ -325,6 +325,7 @@ export class MirrorSystem extends createSystem({}) {
       this.refPanel?.setVideo(session.reference);
     }
     if (session.camera !== this.boundCam || session.engine.cameraSeesMirror !== this.boundSeesMirror) {
+      if (session.camera) session.engine.setCamera(session.camera);
       this.bindCamera();
     }
 
