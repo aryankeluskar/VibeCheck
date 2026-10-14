@@ -245,7 +245,7 @@ It prints PASS/FAIL per step and writes screenshots to `.tools/xr-verify/`: `01-
 
 **P2, nice to have**
 - [ ] **T9 Backup demo video**: screen-record the IWER emulator run and the real headset cast. Upload it and add it to the submission links.
-- [ ] **T10 Submission copy**: draft below. Confirm the production URL works signed-out and on another device.
+- [x] **T10 Submission copy**: draft below. Confirm the production URL works signed-out and on another device.
 - [ ] YouTube in production: set `YTDLP_PROXY` (residential) so `/api/download` works from Vercel without the laptop.
 - [ ] Generation mode: rebuild "describe a move → AI video" on AI Gateway video models (`experimental_generateVideo`, e.g. `google/veo-3.1-fast-generate-001`) to replace the old Perplexity/HeyGen/xAI path in `app/api/generate`.
 
@@ -291,9 +291,38 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 
 ## Submission draft (VR Apps track)
 
-**Name:** Mirror Coach
-**Description:** Mirror Coach turns any dance or workout video into a live, immersive lesson on Meta Quest 3. Stand in front of a real mirror in mixed reality. The headset's passthrough camera tracks your reflection with MediaPipe Pose and overlays your skeleton with every limb labelled and colored by how well it matches the reference. A ghost of the instructor's pose is fitted onto your body, and the reference video floats beside the mirror. A voice coach (Meta Llama 4 Scout through Vercel AI Gateway, with TTS) gives one specific correction every few seconds. Built with Meta's Immersive Web SDK (immersive-ar, passthrough camera, grabbable panels), Next.js on Vercel, Vercel Blob, Vercel Sandbox and AI Gateway with model fallbacks. Runs in Quest Browser from a live HTTPS URL. There's also a 2D web version for laptops.
-**Demo setup:** Needs a mirror (full-length is best). Open `/xr` on a Quest 3, allow camera access, pick the "(passthrough)" camera, stand facing the mirror about 1.7 m away, then Enter Mirror (MR). No login. Demo video: <link>. Without a mirror, choose "Camera faces me" in the 2D view; on desktop the Quest emulator loads automatically.
+Paste-ready copy for the portal (refreshed 3:10pm, T10). Production URLs checked signed-out with `curl`: `/xr`, `/` and `/api/library` all return 200.
+
+**Project name:** Mirror Coach
+
+**Track:** VR Apps
+
+**Public deployed URL:** https://vercel-ff-five.vercel.app/xr (2D version for a laptop webcam: https://vercel-ff-five.vercel.app/)
+
+**Social links:** https://github.com/aryankeluskar/vercel_ff · backup demo video (T9)
+
+**Description:**
+
+Mirror Coach is a mixed-reality dance and fitness coach for Meta Quest 3. It's for anyone who learns moves from online videos. A video shows you the move and a mirror shows you yourself, but neither tells you what you're doing wrong.
+
+You stand in front of a real mirror wearing the Quest. The headset's passthrough camera watches your reflection, and Mirror Coach draws your skeleton on top of it, each limb colored and labelled by how closely it matches the reference, with a ghost of the instructor's pose fitted to your body. The reference video hangs beside the mirror. A voice coach gives one specific correction every few seconds. After each full play-through, a report card shows your grade, a per-limb breakdown and tips.
+
+- **Clip library:** 14 curated clips (9 dance, 5 workout), each with a pose timeline computed offline, so nothing waits on analysis.
+- **Overlay registration:** uses the Quest camera's own factory calibration (Camera2 intrinsics and extrinsics: a 72.7° × 57.8° crop, an 11° downward tilt, and the lens offset from the eyes). The overlay is anchored to the head pose at the moment each frame was captured, so it stays on the reflection when you turn your head. The distance to the reflection is measured continuously from your torso size.
+- **Hands only, no controllers:** pinch buttons for play, restart, layout and a calibration pad, a pinch "Go again" on the report card, and a raise-both-hands gesture to resume.
+- **Agent-native tooling:** a `window.mirrorCoach.agent` API (help, status, log, do), a script that drives a real Quest over ADB, and a headless verifier that runs the whole flow in Meta's IWER emulator before XR changes ship.
+
+Technologies: Meta Immersive Web SDK (WebXR `immersive-ar` with passthrough and hand tracking), the Quest passthrough camera through `getUserMedia`, MediaPipe Pose in the browser, Next.js on Vercel, Vercel Blob for videos and pose timelines, and the AI SDK through Vercel AI Gateway with fallback models for every task: Llama 4 Scout writes the coach lines, Llama 4 Maverick writes the report card, OpenAI TTS speaks them.
+
+How it meets the VR Apps criteria: Mirror Coach is an immersive WebXR mixed-reality session that runs in Quest Browser from a live Vercel HTTPS URL, with nothing to install. We tested it end to end on a real Quest 3 in front of a mirror.
+
+**Demo setup instructions:**
+
+1. Meta Quest 3 (Quest Browser) and a mirror, full-length if possible. No login or account.
+2. Stand 1.5–2 m from the mirror, facing it.
+3. Open https://vercel-ff-five.vercel.app/xr, tap **Allow camera** and accept the prompt, pick a clip, then tap **Enter Mirror (MR)**.
+4. Hands are enough; no controllers needed. Point and pinch the buttons under the HUD, or raise both hands to resume a paused clip.
+5. Backup demo video: (T9 link).
 
 ## Conventions for humans and agents
 
