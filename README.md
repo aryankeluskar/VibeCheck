@@ -152,11 +152,51 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 - [ ] YouTube in production: set `YTDLP_PROXY` (residential) so `/api/download` works from Vercel without the laptop.
 - [ ] Generation mode: rebuild "describe a move → AI video" on AI Gateway video models (`experimental_generateVideo`, e.g. `google/veo-3.1-fast-generate-001`) to replace the old Perplexity/HeyGen/xAI path in `app/api/generate`.
 
+## Demo plan
+
+Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.youtube.com/watch?v=kL3udtWY1EE), 2:18). What worked there: a skit-based problem setup in the first 20 s, a **real coach line heard out loud**, an on-camera "it told me my arms are off" moment, and a funny ending (the "F" report card). What we change: that video spent 50 s on breadth (Zoom and generate modes). VR judges score *fun*, *creativity and use of VR*, and *execution*, so we spend that time on the mirror, presence and the spatial layout.
+
+### Two deliverables, one shoot
+
+**A. Recorded video, 75–90 s** (link it in the submission; Round 1 judges see only the submission)
+
+| Time | Shot | Source |
+| --- | --- | --- |
+| 0:00–0:08 | **Skit:** teammate at a mirror, phone propped up playing a dance tutorial, flailing: *"I've watched this twenty times. What are my arms even doing?"* | Phone |
+| 0:08–0:12 | Puts on the Quest. Title: **Mirror Coach: your mirror finally talks back.** | Phone |
+| 0:12–0:40 | **Hero:** headset POV. The reflection with the colored skeleton, limb labels and dashed ghost; the reference on the left; score climbing. Press **X**: the reference flies to the top. | Quest recording or cast |
+| 0:40–0:55 | **The fix-it moment:** the coach says something specific (e.g. "right arm higher") → the dancer fixes it → that limb turns green → the score jumps. React like the TreeHacks video did. | Quest POV, then a phone over-the-shoulder shot of the real setup |
+| 0:55–1:10 | **How it's built**, as fast on-screen text over B-roll: Meta IWSDK `immersive-ar` + Quest passthrough camera → MediaPipe in the browser → Llama 4 Scout via Vercel AI Gateway → voice. Runs from a URL, no install. | Edit |
+| 1:10–1:20 | **Close:** "Any video. Any mirror." + URL. Optional laugh: the dancer gets roasted by the coach. | Phone |
+
+**B. Live finalist demo, 3:00, no Q&A** (if we make the top 3 at 4:50)
+- **0:00–0:20 Problem**, one sentence plus the skit line: "The internet has infinite demonstrations and zero correction. A mirror shows you, but it can't tell you what's wrong."
+- **0:20–2:10 Live:** a teammate in the Quest facing the mirror, casting to the screen. Narrate three things: limb labels on the reflection, the ghost pose, a voice correction followed by the fix. Press X to move the reference.
+- **2:10–2:45 Why VR + how:** your actual body in your actual room, hands free, anchored panels; the IWSDK + Quest passthrough camera + AI Gateway stack.
+- **2:45–3:00 Close:** dance today; physio, yoga and martial arts next.
+- **If anything fails live:** play video A immediately. Have it open in a tab before our slot.
+
+### Logistics (decide in the next 15 minutes)
+- **Mirror:** find one at the venue (restrooms or the Meta VR room) or buy a full-length one. A sink mirror only shows the upper body, so use an **arm-heavy routine** if that's all we have.
+- **Reference clip:** a teammate films a 30–45 s front-facing routine on a phone (no rights issues, and it matches our skit). Upload it in the 2D app, then open it once on the laptop to cache the poses.
+- **Recording:** test the Quest's built-in recorder on an MR session in the first 5 minutes. If passthrough comes out black, film the cast window on a laptop plus a phone shot of the person.
+- **Audio:** make sure the coach voice is audible in the recording and through the AV cast. Ask the AV team at 4:50 whether casting carries Quest audio; otherwise hold a mic near the headset speaker.
+- **Judges without a mirror:** Round 1 judges try it on a Quest themselves. Put "needs a mirror, stand 1.5 m away" at the top of the setup instructions, plus the video link as the fallback.
+
+### Timeline (now → 4:00)
+| Time | What | Who |
+| --- | --- | --- |
+| 1:20–1:50 | Headset smoke test + calibration (T1, T2) · find a mirror · film the reference clip (T3) | Ali · Cristal · Lucas |
+| 1:50–2:30 | Fix whatever the headset test finds · upper-body mode if the mirror is small | Aryan + agents |
+| 2:30–3:10 | Shoot video A (skit, POV, fix-it moment, B-roll) | Everyone; Cristal directs |
+| 3:10–3:40 | Edit (CapCut), upload to YouTube unlisted, fill in the submission | Cristal + Aryan |
+| 3:40–4:00 | Submit, check the showcase links signed-out, rehearse B once | Everyone |
+
 ## Submission draft (VR Apps track)
 
 **Name:** Mirror Coach
 **Description:** Mirror Coach turns any dance or workout video into a live, immersive lesson on Meta Quest 3. Stand in front of a real mirror in mixed reality. The headset's passthrough camera tracks your reflection with MediaPipe Pose and overlays your skeleton with every limb labelled and colored by how well it matches the reference. A ghost of the instructor's pose is fitted onto your body, and the reference video floats beside the mirror. A voice coach (Meta Llama 4 Scout through Vercel AI Gateway, with TTS) gives one specific correction every few seconds. Built with Meta's Immersive Web SDK (immersive-ar, passthrough camera, grabbable panels), Next.js on Vercel, Vercel Blob, Vercel Sandbox and AI Gateway with model fallbacks. Runs in Quest Browser from a live HTTPS URL. There's also a 2D web version for laptops.
-**Demo setup:** Open `/xr` on a Quest 3 and allow camera access. Stand facing a mirror about 1.5 m away, then Enter Mirror (MR). No login. Without a mirror, choose "Camera faces me" in the 2D view; on desktop the Quest emulator loads automatically.
+**Demo setup:** Needs a mirror (full-length is best). Open `/xr` on a Quest 3, allow camera access, pick the "(passthrough)" camera, stand facing the mirror about 1.5 m away, then Enter Mirror (MR). No login. Demo video: <link>. Without a mirror, choose "Camera faces me" in the 2D view; on desktop the Quest emulator loads automatically.
 
 ## Conventions for humans and agents
 
