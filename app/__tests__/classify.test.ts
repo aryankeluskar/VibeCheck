@@ -3,43 +3,33 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 /**
  * Tests for the video classification logic.
  *
- * The classifyVideo function calls Groq's LLM to determine
- * whether a video is "dance" or "gym" based on its title and description.
+ * classifyVideo asks a small text model (through AI Gateway) whether a video
+ * is "dance" or "gym" based on its title and description.
  */
 
-const mockCreate = vi.fn();
+const mockGenerateText = vi.fn();
 
-// We mock the OpenAI constructor used by classifyVideo
-vi.mock("openai", () => {
-  return {
-    default: class MockOpenAI {
-      chat = {
-        completions: {
-          create: mockCreate,
-        },
-      };
-    },
-  };
-});
+// Mock the AI SDK call so unit tests never reach AI Gateway.
+vi.mock("ai", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("ai")>()),
+  generateText: (...args: unknown[]) => mockGenerateText(...args),
+}));
 
 // Need to import after mock setup
 import { classifyVideo } from "../lib/classifyVideo";
 
-function mockGroqResponse(content: string) {
-  mockCreate.mockResolvedValueOnce({
-    choices: [{ message: { content } }],
-  });
+function mockModelResponse(text: string) {
+  mockGenerateText.mockResolvedValueOnce({ text });
 }
 
 describe("classifyVideo", () => {
   beforeEach(() => {
-    vi.stubEnv("GROQ_API_KEY", "test-key");
-    mockCreate.mockReset();
+    mockGenerateText.mockReset();
   });
 
   describe("unit tests with mocked metadata", () => {
     it("classifies a dance video correctly", async () => {
-      mockGroqResponse("dance");
+      mockModelResponse("dance");
       const result = await classifyVideo(
         "Learn This Viral TikTok Dance",
         "Step-by-step tutorial for the trending dance move"
@@ -48,7 +38,7 @@ describe("classifyVideo", () => {
     });
 
     it("classifies a gym/fitness video correctly", async () => {
-      mockGroqResponse("fitness");
+      mockModelResponse("fitness");
       const result = await classifyVideo(
         "10 Min Ab Workout - No Equipment",
         "Quick and effective ab workout you can do anywhere"
@@ -57,7 +47,7 @@ describe("classifyVideo", () => {
     });
 
     it("handles 'fitness' response and maps to 'gym'", async () => {
-      mockGroqResponse("Fitness");
+      mockModelResponse("Fitness");
       const result = await classifyVideo(
         "Full Body HIIT Workout",
         "High intensity interval training for fat burn"
@@ -66,7 +56,7 @@ describe("classifyVideo", () => {
     });
 
     it("handles edge case: Zumba (could be either)", async () => {
-      mockGroqResponse("dance");
+      mockModelResponse("dance");
       const result = await classifyVideo(
         "Zumba Fitness Dance Workout",
         "Fun dance workout to lose weight"
@@ -75,7 +65,7 @@ describe("classifyVideo", () => {
     });
 
     it("defaults to 'dance' on ambiguous response", async () => {
-      mockGroqResponse("something unexpected");
+      mockModelResponse("something unexpected");
       const result = await classifyVideo(
         "Random Video Title",
         "Some description"
@@ -85,8 +75,7 @@ describe("classifyVideo", () => {
   });
 
   describe("fallback behavior", () => {
-    it("returns 'dance' when GROQ_API_KEY is missing", async () => {
-      vi.stubEnv("GROQ_API_KEY", "");
+    it("returns 'dance' when the model returns nothing", async () => {
       const result = await classifyVideo(
         "10 Min Ab Workout",
         "Workout description"
@@ -95,7 +84,7 @@ describe("classifyVideo", () => {
     });
 
     it("returns 'dance' when API call throws an error", async () => {
-      mockCreate.mockRejectedValueOnce(new Error("API error"));
+      mockGenerateText.mockRejectedValueOnce(new Error("API error"));
       const result = await classifyVideo(
         "Some Video",
         "Some description"
@@ -122,7 +111,7 @@ describe("classifyVideo", () => {
     }
 
     itIntegration("classifies dance short (mWQGrkm86Ps) as dance", async () => {
-      mockCreate.mockRestore?.();
+      mockGenerateText.mockRestore?.();
       const { classifyVideo: realClassify } = await import("../lib/classifyVideo");
       vi.stubEnv("GROQ_API_KEY", process.env.GROQ_API_KEY_REAL!);
 
@@ -132,7 +121,7 @@ describe("classifyVideo", () => {
     });
 
     itIntegration("classifies gym short (acj52MXBaeo) as gym", async () => {
-      mockCreate.mockRestore?.();
+      mockGenerateText.mockRestore?.();
       const { classifyVideo: realClassify } = await import("../lib/classifyVideo");
       vi.stubEnv("GROQ_API_KEY", process.env.GROQ_API_KEY_REAL!);
 
