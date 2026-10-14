@@ -14,8 +14,6 @@
  *   node scripts/quest-drive.mjs view [file]       # what the wearer sees, passthrough + XR (Meta's screenshot service)
  *   node scripts/quest-drive.mjs cast [serial]     # wireless cast: Wi-Fi ADB + MQDH's casting window; then unplug USB.
  *                                                  # Needs a network that lets the laptop reach the headset (venue Wi-Fi may not).
- *   node scripts/quest-drive.mjs record start|stop # record on the headset (passthrough + XR, 1080p); unplug in between;
- *                                                  # stop pulls the clip to .tools/quest/clips/
  *
  * Needs adb (developer mode on, USB debugging allowed in the headset). Works
  * over USB or Wi-Fi ADB; with both attached it uses USB (ANDROID_SERIAL overrides).
@@ -106,25 +104,6 @@ if (cmd === "cast") {
     { detached: true, stdio: "ignore", env: { ...process.env, QUEST_WIFI: serial, QUEST_USB: usb ?? "", REAL_ADB: ADB } },
   ).unref();
   console.log(`casting ${serial} over Wi-Fi; the USB cable can come out`);
-  process.exit(0);
-}
-
-if (cmd === "record") {
-  // On-headset video (passthrough included, 1080p): start, unplug and shoot,
-  // plug back in, stop. The clip is pulled to .tools/quest/clips/.
-  const metavr = join(dirname(MQDH_ADB), "metavr");
-  const env = { ...process.env, HZDB_DEVICE: process.env.ANDROID_SERIAL ?? devices[0] };
-  if (rest[0] !== "stop") {
-    console.log(execFileSync(metavr, ["capture", "video", "start"], { encoding: "utf8", env }).trim());
-    process.exit(0);
-  }
-  const res = execFileSync(metavr, ["capture", "video", "stop"], { encoding: "utf8", env });
-  const remote = res.match(/saved to device: (\S+)/)?.[1];
-  if (!remote) throw new Error(res);
-  const file = join(out, "clips", remote.split("/").pop());
-  mkdirSync(join(out, "clips"), { recursive: true });
-  adb("pull", remote, file);
-  console.log(file);
   process.exit(0);
 }
 
