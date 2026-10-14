@@ -20,7 +20,7 @@ Built at the **Fast Forward Hackathon** (Vercel × Meta, Oct 14 2026) for the **
 | --- | --- |
 | 2D app on Vercel (library, upload, YouTube, live pose, scoring, voice coach, report card) | ✅ deployed |
 | All AI through **Vercel AI Gateway** (coach, vision scoring, report, classification, TTS) with fallbacks | ✅ verified locally |
-| Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ 14 curated clips (9 dance, 5 workout), compressed to 540p, pose timelines precomputed, so nothing waits on a download or analysis |
+| Reference video library in **Vercel Blob** (shared across laptop, headset and judges) | ✅ 15 curated clips (9 dance, 6 workout), compressed to 540p, pose timelines precomputed, so nothing waits on a download or analysis |
 | YouTube download: local yt-dlp → Blob ✅ · **Vercel Sandbox** yt-dlp ⚠️ blocked by YouTube's bot check unless `YTDLP_PROXY` / `YTDLP_COOKIES` is set |
 | **`/xr` Mirror Coach** (IWSDK, `immersive-ar`) | ✅ works in the desktop Quest 3 emulator (IWER): tracking, limb labels, ghost pose, HUD, voice coach, end-of-run report card (checked end to end by `scripts/xr-verify.mjs`) |
 | On a **real Quest 3** in front of a mirror | ✅ **works (2:30pm, Quest Browser 152)**: passthrough camera 1280×960 (`camera 1/2, facing back`), XR session, tracking at 15 fps, limb scores, target posture, live voice coach. Read over USB with `scripts/quest-drive.mjs`. Calibration still to confirm by eye (T2) |
@@ -233,7 +233,7 @@ It prints PASS/FAIL per step and writes screenshots to `.tools/xr-verify/`: `01-
 - [ ] **T2 Mirror calibration** (Ali): set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
   - Defaults now: distance 3.4 m (reflection depth for a user 1.7 m from the mirror), hfov 71°, offsetY −0.03 m, offsetX 0. Sources and reasoning are in the comment above `DEFAULT_CALIBRATION`. Not measured on a headset.
   - On the headset: stand 1.7 m from the mirror, press **Y** to show the feed, align with the sticks, then copy `calibration` from `/api/debug` into `DEFAULT_CALIBRATION`. To learn which lens "camera 1" is, cover the left front camera with a finger: if the feed goes dark it's the left one and offsetX should be about −0.035, otherwise about +0.035. Open `/xr?recalibrate=1` to drop a saved calibration.
-- [x] **T3 Demo reference clips**: 14 clips (9 dance, 5 workout) are in the library with pose timelines precomputed. See [Reference library](#reference-library-scriptslibrary).
+- [x] **T3 Demo reference clips**: 15 clips (9 dance, 6 workout) are in the library with pose timelines precomputed. See [Reference library](#reference-library-scriptslibrary).
 - [ ] **T4 Audio check in headset** (Ali): reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
   - Code side done: the music fades to 25% while the coach talks. The coach voice now reuses one audio element that is unlocked by the Enter tap, so the browser can't block lines spoken later in XR. Still needs an ears-on check in the headset.
 
@@ -307,7 +307,7 @@ Mirror Coach is a mixed-reality dance and fitness coach for Meta Quest 3. It's f
 
 You stand in front of a real mirror wearing the Quest. The headset's passthrough camera watches your reflection, and Mirror Coach draws your skeleton on top of it, each limb colored and labelled by how closely it matches the reference, with a ghost of the instructor's pose fitted to your body. The reference video hangs beside the mirror. A voice coach gives one specific correction every few seconds. After each full play-through, a report card shows your grade, a per-limb breakdown and tips.
 
-- **Clip library:** 14 curated clips (9 dance, 5 workout), each with a pose timeline computed offline, so nothing waits on analysis.
+- **Clip library:** 15 curated clips (9 dance, 6 workout), each with a pose timeline computed offline, so nothing waits on analysis.
 - **Overlay registration:** uses the Quest camera's own factory calibration (Camera2 intrinsics and extrinsics: a 72.7° × 57.8° crop, an 11° downward tilt, and the lens offset from the eyes). The overlay is anchored to the head pose at the moment each frame was captured, so it stays on the reflection when you turn your head. The distance to the reflection is measured continuously from your torso size.
 - **Hands only, no controllers:** pinch buttons for play, restart, layout and a calibration pad, a pinch "Go again" on the report card, and a raise-both-hands gesture to resume.
 - **Agent-native tooling:** a `window.mirrorCoach.agent` API (help, status, log, do), a script that drives a real Quest over ADB, and a headless verifier that runs the whole flow in Meta's IWER emulator before XR changes ship.
