@@ -125,12 +125,14 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 
 ## Team
 
-| Who | GitHub | Suggested focus (claim or swap in the group chat) |
+4 members. Pick whatever TODO you want and put your name on it (edit this file or say so in the group chat).
+
+| # | Name | GitHub |
 | --- | --- | --- |
-| Aryan Keluskar | [@aryankeluskar](https://github.com/aryankeluskar) | Engine, APIs, Vercel/AI Gateway, integration, submission |
-| Ali Sasanian | [@Gond-ul](https://github.com/Gond-ul) | Headset bring-up and mirror calibration on a real Quest 3 (T1, T2, T6) |
-| Lucas Masen | [@lucasmasen](https://github.com/lucasmasen) | XR scene polish: panels, spatial UI, v0/IWSDK look and feel (T4, T5, T8) |
-| Cristal | [@cristalj](https://github.com/cristalj) | Demo video, reference clips, submission copy, rehearsal (T3, T9, T10) |
+| 1 | Aryan Keluskar | [@aryankeluskar](https://github.com/aryankeluskar) |
+| 2 | Ali Sasanian | [@Gond-ul](https://github.com/Gond-ul) |
+| 3 | Lucas Masen | [@lucasmasen](https://github.com/lucasmasen) |
+| 4 | Cristal | [@cristalj](https://github.com/cristalj) |
 
 ## TODO (build stops at 3:00pm, submit by 4:00pm, portal closes 4:10pm)
 
@@ -179,18 +181,18 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 ### Logistics (decide in the next 15 minutes)
 - **Mirror:** ✅ there is a big mirror next to our table. Shoot and demo there; full-body routines are fine.
 - **Reference clip:** a teammate films a 30–45 s front-facing routine on a phone (no rights issues, and it matches our skit). Upload it in the 2D app, then open it once on the laptop to cache the poses.
-- **Recording:** test the Quest's built-in recorder on an MR session in the first 5 minutes. If passthrough comes out black, film the cast window on a laptop plus a phone shot of the person.
+- **Recording:** with the headset in developer mode (our Meta dev org), Meta Quest Developer Hub can cast and record the headset view on a laptop. Otherwise try the Quest's built-in recorder on an MR session first; if passthrough comes out black, film the cast window plus a phone shot of the person.
 - **Audio:** make sure the coach voice is audible in the recording and through the AV cast. Ask the AV team at 4:50 whether casting carries Quest audio; otherwise hold a mic near the headset speaker.
 - **Judges without a mirror:** Round 1 judges try it on a Quest themselves. Put "needs a mirror, stand 1.5 m away" at the top of the setup instructions, plus the video link as the fallback.
 
 ### Timeline (now → 4:00)
-| Time | What | Who |
-| --- | --- | --- |
-| 1:20–1:50 | Headset smoke test + calibration (T1, T2) · find a mirror · film the reference clip (T3) | Ali · Cristal · Lucas |
-| 1:50–2:30 | Fix whatever the headset test finds · upper-body mode if the mirror is small | Aryan + agents |
-| 2:30–3:10 | Shoot video A (skit, POV, fix-it moment, B-roll) | Everyone; Cristal directs |
-| 3:10–3:40 | Edit (CapCut), upload to YouTube unlisted, fill in the submission | Cristal + Aryan |
-| 3:40–4:00 | Submit, check the showcase links signed-out, rehearse B once | Everyone |
+| Time | What |
+| --- | --- |
+| 1:20–1:50 | Headset smoke test + calibration (T1, T2) · film the reference clip (T3) |
+| 1:50–2:30 | Fix whatever the headset test finds |
+| 2:30–3:10 | Shoot video A (skit, POV, fix-it moment, B-roll) |
+| 3:10–3:40 | Edit (CapCut), upload to YouTube unlisted, fill in the submission |
+| 3:40–4:00 | Submit, check the showcase links signed-out, rehearse B once |
 
 ## Submission draft (VR Apps track)
 
