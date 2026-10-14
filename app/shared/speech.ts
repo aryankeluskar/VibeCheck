@@ -7,6 +7,56 @@ let isSpeaking = false;
 let muted = false;
 let currentAudio: HTMLAudioElement | null = null;
 
+// Ducking: while the coach talks, fade a registered media element (the
+// reference video's music) down so the voice is clear, then back up.
+// Opt-in via setDuckTarget; callers that never register one are unaffected.
+const DUCK_LEVEL = 0.25;
+const FADE_MS = 180;
+let duckTarget: HTMLMediaElement | null = null;
+let duckRestore: number | null = null;
+let fadeTimer: ReturnType<typeof setInterval> | null = null;
+
+function fadeTo(el: HTMLMediaElement, to: number): void {
+  if (fadeTimer) clearInterval(fadeTimer);
+  // setInterval, not requestAnimationFrame: window rAF stops during WebXR sessions.
+  const from = el.volume;
+  const steps = 6;
+  let i = 0;
+  fadeTimer = setInterval(() => {
+    i++;
+    el.volume = Math.min(1, Math.max(0, from + ((to - from) * i) / steps));
+    if (i >= steps && fadeTimer) {
+      clearInterval(fadeTimer);
+      fadeTimer = null;
+    }
+  }, FADE_MS / steps);
+}
+
+function duck(): void {
+  if (!duckTarget || duckRestore !== null) return;
+  duckRestore = duckTarget.volume;
+  fadeTo(duckTarget, Math.min(duckRestore, DUCK_LEVEL));
+}
+
+function unduck(): void {
+  if (!duckTarget || duckRestore === null) return;
+  fadeTo(duckTarget, duckRestore);
+  duckRestore = null;
+}
+
+/** Register the element whose audio should dip while the coach speaks (null to clear). */
+export function setDuckTarget(el: HTMLMediaElement | null): void {
+  if (el === duckTarget) return;
+  if (duckTarget && duckRestore !== null) {
+    if (fadeTimer) clearInterval(fadeTimer);
+    fadeTimer = null;
+    duckTarget.volume = duckRestore;
+  }
+  duckRestore = null;
+  duckTarget = el;
+  if (el && isSpeaking) duck();
+}
+
 export function isMuted(): boolean {
   return muted;
 }
@@ -29,23 +79,19 @@ export function speak(audioBase64: string): void {
 
   isSpeaking = true;
   currentAudio = audio;
+  duck();
 
-  audio.onended = () => {
+  const done = () => {
+    // Ignore a stale clip finishing after cancelSpeech() or a newer clip.
+    if (currentAudio !== audio) return;
     isSpeaking = false;
     currentAudio = null;
     URL.revokeObjectURL(url);
+    unduck();
   };
-  audio.onerror = () => {
-    isSpeaking = false;
-    currentAudio = null;
-    URL.revokeObjectURL(url);
-  };
-
-  audio.play().catch(() => {
-    isSpeaking = false;
-    currentAudio = null;
-    URL.revokeObjectURL(url);
-  });
+  audio.onended = done;
+  audio.onerror = done;
+  audio.play().catch(done);
 }
 
 export function isSpeechPlaying(): boolean {
@@ -58,4 +104,5 @@ export function cancelSpeech(): void {
     currentAudio = null;
   }
   isSpeaking = false;
+  unduck();
 }

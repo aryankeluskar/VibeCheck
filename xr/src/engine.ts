@@ -27,7 +27,7 @@ import { extractPoses } from '../../app/lib/videoPoseExtractor';
 import type { PoseTimeline } from '../../app/lib/videoPoseExtractor';
 import { buildPoseSummary, computeScore, resetScoring } from '../../app/shared/scoring';
 import { getCoachMessage, resetCoach } from '../../app/shared/coach';
-import { speak } from '../../app/shared/speech';
+import { setDuckTarget, speak } from '../../app/shared/speech';
 import type { AppMode } from '../../app/shared/mode';
 
 export type { NormalizedLandmark, DetailedComparison };
@@ -174,6 +174,8 @@ export class CoachEngine {
   async start(camera: HTMLVideoElement, reference: HTMLVideoElement, opts: { lite: boolean }) {
     this.camera = camera;
     this.reference = reference;
+    // Dip the reference music while the coach voice plays (T4).
+    setDuckTarget(reference);
     resetScoring();
     resetCoach();
     this.smoothed = 0;

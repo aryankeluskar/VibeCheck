@@ -137,10 +137,10 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 ## TODO (build stops at 3:00pm, submit by 4:00pm, portal closes 4:10pm)
 
 **P0, must happen for eligibility and the demo**
-- [ ] **T1 Real-headset smoke test**: open `/xr` on a Quest 3 from the production URL. Check that a *facing back* camera shows up, permission works, XR launches, and tracking fps is above 8 (shown on the HUD). Report what breaks.
-- [ ] **T2 Mirror calibration**: set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
-- [ ] **T3 Demo reference clips**: pick 1–2 short (30–60 s), full-body, front-facing clips with clear moves. Add them through the 2D app and open each once on the laptop so its pose timeline is cached before the headset loads it. Prefer clips we recorded ourselves (no rights issues).
-- [ ] **T4 Audio check in headset**: reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
+- [ ] **T1 Real-headset smoke test** (Ali): open `/xr` on a Quest 3 from the production URL. Check that a *facing back* camera shows up, permission works, XR launches, and tracking fps is above 8 (shown on the HUD). Report what breaks.
+- [ ] **T2 Mirror calibration** (Ali): set default `hfov`, `distance` and offsets in `xr/src/session.ts` (`DEFAULT_CALIBRATION`) so the skeleton lands on the reflection without manual tweaking. Note the Quest camera resolution and aspect from the HUD or the console (`mirrorCoach.camera.videoWidth`).
+- [ ] **T3 Demo reference clips** (Ali): pick 1–2 short (30–60 s), full-body, front-facing clips with clear moves. Add them through the 2D app and open each once on the laptop so its pose timeline is cached before the headset loads it. Prefer clips we recorded ourselves (no rights issues).
+- [ ] **T4 Audio check in headset** (Ali): reference music and coach voice are both audible. If they clash, duck the music while the coach speaks (`app/shared/speech.ts`).
 
 **P1, makes the demo land**
 - [ ] **T5 Spatial UI**: replace the canvas HUD with an IWSDK UIKit panel (`iwsdk-ui` skill) with play/pause, restart and layout buttons for hand-tracking users (no controllers).
