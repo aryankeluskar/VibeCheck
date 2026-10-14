@@ -121,6 +121,20 @@ Iterating on the XR app with hot reload: `cd xr && npm run dev` (IWSDK CLI-manag
 
 **Never commit** `.env*`, credit codes, or tokens.
 
+### Deploying (Vercel Git integration, no setup needed)
+
+| You do | Vercel does |
+| --- | --- |
+| Push any branch other than `master` | Builds a **preview**: `https://vercel-ff-git-<branch>-aryan-keluskars-projects.vercel.app` (stable per branch) plus a unique URL per commit |
+| Open a PR | The Vercel bot comments the preview URL on the PR and adds a deploy check |
+| Merge or push to `master` | Deploys **production**: https://vercel-ff-five.vercel.app |
+
+- Previews are public (no Vercel login), so they open on the Quest too: test a branch on the headset before merging.
+- Every build runs `pnpm build`: the `xr/` typecheck, the `xr/` Vite build, then `next build` (which typechecks the app). A type error fails the deploy instead of shipping.
+- Previews and production share the same Blob library and AI Gateway credits.
+- No Vercel account is needed to push. The repo is on a personal GitHub account, so Vercel deploys commits from any collaborator. Build logs live in the Vercel dashboard (ask Aryan for access) or use the "Details" link on the PR check.
+- Quick path for small fixes: push straight to `master`. For anything risky (XR changes before the demo), push a branch, check the preview on the headset, then merge.
+
 ---
 
 ## Team
@@ -202,7 +216,7 @@ Based on our TreeHacks video ([youtube.com/watch?v=kL3udtWY1EE](https://www.yout
 
 ## Conventions for humans and agents
 
-- **Pull before you push; commit small and often.** `master` auto-deploys to production on Vercel. Re-open the production URL after each deploy.
+- **Pull before you push; commit small and often.** `master` auto-deploys to production; every other branch gets a public preview (see Deploying). Re-open the URL after each deploy.
 - Run `pnpm build` before pushing; it builds `xr/` too, exactly like Vercel does.
 - Shared logic lives in `app/lib` and `app/shared` and is used by both the 2D app and `xr/`. Don't fork it.
 - Debug the headset from the console: `mirrorCoach.engine.state` (score, limbs, fps, coach line) and `mirrorCoach.calibration`.
